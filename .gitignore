@@ -26,7 +26,6 @@ data/
 backups/
 logs/
 exports/
-backend/
 # Test and coverage output
 coverage/
 test-results/

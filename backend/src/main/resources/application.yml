@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: billing-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${BILLING_DB_URL:jdbc:mysql://127.0.0.1:3306/billing?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: root
+    password: root
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 2000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_catalog: billing
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    create-schemas: false
+    default-schema: billing
+    schemas: billing
+    locations: classpath:db/migration
+  jackson:
+    time-zone: UTC
+  mvc:
+    problemdetails:
+      enabled: false
+
+server:
+  address: ${BILLING_SERVER_ADDRESS:127.0.0.1}
+  port: ${BILLING_SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+billing:
+  security:
+    allowed-origins:
+      - http://127.0.0.1:5173
+      - http://localhost:5173
+      - billing://app
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Offline billing and inventory backend
+
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-}]"
+  file:
+    name: ${BILLING_LOG_FILE:logs/billing-backend.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 14
