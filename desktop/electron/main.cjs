@@ -1,0 +1,182 @@
+const { app, BrowserWindow, ipcMain, net, protocol, session } = require("electron");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+const APPLICATION_SCHEME = "billing";
+const APPLICATION_ORIGIN = `${APPLICATION_SCHEME}://app`;
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
+
+let mainWindow;
+let backendProcess;
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APPLICATION_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true
+    }
+  }
+]);
+
+function getApiBaseUrl() {
+  return process.env.BILLING_API_BASE_URL || DEFAULT_API_BASE_URL;
+}
+
+function resolveJavaExecutable() {
+  const executableName = process.platform === "win32" ? "java.exe" : "java";
+  const packagedRuntime = path.join(process.resourcesPath, "runtime", "bin", executableName);
+  return fs.existsSync(packagedRuntime) ? packagedRuntime : executableName;
+}
+
+function resolveBackendJar() {
+  if (process.env.BILLING_BACKEND_JAR) {
+    return path.resolve(process.env.BILLING_BACKEND_JAR);
+  }
+
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "backend", "billing-backend.jar");
+  }
+
+  return null;
+}
+
+function startBackendIfConfigured() {
+  const backendJar = resolveBackendJar();
+  if (!backendJar || !fs.existsSync(backendJar)) {
+    return;
+  }
+
+  backendProcess = spawn(resolveJavaExecutable(), ["-jar", backendJar], {
+    env: {
+      ...process.env,
+      BILLING_SERVER_ADDRESS: "127.0.0.1",
+      BILLING_SERVER_PORT: new URL(getApiBaseUrl()).port || "8080"
+    },
+    windowsHide: true,
+    stdio: app.isPackaged ? "ignore" : "inherit"
+  });
+
+  backendProcess.once("exit", (code, signal) => {
+    if (!app.isQuitting && code !== 0) {
+      console.error(`Billing backend stopped unexpectedly: code=${code}, signal=${signal}`);
+    }
+    backendProcess = undefined;
+  });
+}
+
+function stopBackend() {
+  if (backendProcess && !backendProcess.killed) {
+    backendProcess.kill();
+  }
+}
+
+function registerApplicationProtocol() {
+  protocol.handle(APPLICATION_SCHEME, (request) => {
+    const rendererRoot = path.resolve(__dirname, "..", "dist");
+    const requestUrl = new URL(request.url);
+    const requestedPath = decodeURIComponent(requestUrl.pathname).replace(/^\/+/, "");
+    const candidate = path.resolve(rendererRoot, requestedPath || "index.html");
+    const safePrefix = `${rendererRoot}${path.sep}`;
+    const isSafe = candidate === path.join(rendererRoot, "index.html")
+      || candidate.startsWith(safePrefix);
+
+    if (!isSafe) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const filePath = fs.existsSync(candidate) && fs.statSync(candidate).isFile()
+      ? candidate
+      : path.join(rendererRoot, "index.html");
+
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    title: "Simplified Billing",
+    width: 1440,
+    height: 900,
+    minWidth: 1180,
+    minHeight: 720,
+    show: false,
+    backgroundColor: "#f8fafc",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      devTools: !app.isPackaged
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
+    const developmentUrl = process.env.BILLING_RENDERER_URL;
+    const allowed = developmentUrl
+      ? navigationUrl.startsWith(developmentUrl)
+      : navigationUrl.startsWith(APPLICATION_ORIGIN);
+
+    if (!allowed) {
+      event.preventDefault();
+    }
+  });
+
+  const rendererUrl = process.env.BILLING_RENDERER_URL || `${APPLICATION_ORIGIN}/index.html`;
+  mainWindow.loadURL(rendererUrl);
+  mainWindow.once("ready-to-show", () => mainWindow.show());
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+    }
+  });
+
+  app.whenReady().then(() => {
+    registerApplicationProtocol();
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false);
+    });
+
+    ipcMain.handle("billing:get-runtime-info", () => ({
+      applicationVersion: app.getVersion(),
+      platform: process.platform,
+      apiBaseUrl: getApiBaseUrl()
+    }));
+
+    startBackendIfConfigured();
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+}
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
+  stopBackend();
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+

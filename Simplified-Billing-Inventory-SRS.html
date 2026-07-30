@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simplified Billing & Inventory Management System - Requirements and Architecture</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5e6a7d;
+      --blue: #2545a7;
+      --blue-2: #e9efff;
+      --green: #176b4d;
+      --green-2: #e8f6ef;
+      --amber: #8a5a00;
+      --amber-2: #fff5d8;
+      --red: #a42a2a;
+      --red-2: #fdecec;
+      --line: #d6dce7;
+      --paper: #ffffff;
+      --soft: #f5f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    @page {
+      size: A4;
+      margin: 16mm 14mm 17mm;
+      @bottom-center {
+        content: "Simplified Billing & Inventory Management System  •  " counter(page);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+
+    html {
+      background: #eef1f6;
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 10.2pt;
+      line-height: 1.42;
+    }
+
+    body {
+      margin: 0 auto;
+      max-width: 210mm;
+      background: var(--paper);
+    }
+
+    main { padding: 0; }
+
+    h1, h2, h3, h4 {
+      color: var(--ink);
+      line-height: 1.18;
+      margin: 0 0 8px;
+      page-break-after: avoid;
+    }
+
+    h1 { font-size: 28pt; letter-spacing: -0.5px; }
+
+    h2 {
+      font-size: 18pt;
+      color: var(--blue);
+      margin-top: 3px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--blue);
+    }
+
+    h3 {
+      font-size: 13pt;
+      color: #243f87;
+      margin-top: 16px;
+    }
+
+    h4 {
+      font-size: 10.6pt;
+      margin-top: 12px;
+    }
+
+    p { margin: 5px 0 9px; }
+    ul, ol { margin: 5px 0 10px 20px; padding: 0; }
+    li { margin: 3px 0; }
+    strong { color: #111827; }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9pt;
+      background: #eef2f7;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .cover {
+      min-height: 260mm;
+      padding: 28mm 18mm 16mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      page-break-after: always;
+      background:
+        linear-gradient(145deg, rgba(37,69,167,.97) 0%, rgba(37,69,167,.97) 35%, transparent 35.2%),
+        linear-gradient(165deg, #ffffff 0%, #ffffff 76%, #edf2ff 76.2%);
+    }
+
+    .cover .eyebrow {
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    .cover-title {
+      margin-top: 70mm;
+      max-width: 165mm;
+    }
+
+    .cover-title h1 { color: var(--ink); }
+    .cover-title .subtitle {
+      color: var(--blue);
+      font-size: 16pt;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+
+    .cover-title .edition {
+      color: var(--muted);
+      font-size: 11pt;
+      margin-top: 18px;
+    }
+
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 28px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .meta-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      font-size: 7.8pt;
+    }
+
+    .meta-value { font-weight: 600; margin-top: 2px; }
+
+    .section {
+      padding: 0;
+      page-break-before: always;
+    }
+
+    .section.first { page-break-before: auto; }
+
+    .section-number {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      font-size: 8.3pt;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .lead {
+      color: #39475b;
+      font-size: 11.2pt;
+      line-height: 1.48;
+      margin: 10px 0 15px;
+    }
+
+    .callout {
+      margin: 10px 0 13px;
+      padding: 10px 12px;
+      border-left: 4px solid var(--blue);
+      background: var(--blue-2);
+      page-break-inside: avoid;
+    }
+
+    .callout.green { border-color: var(--green); background: var(--green-2); }
+    .callout.amber { border-color: var(--amber); background: var(--amber-2); }
+    .callout.red { border-color: var(--red); background: var(--red-2); }
+    .callout p:last-child { margin-bottom: 0; }
+
+    .tag {
+      display: inline-block;
+      font-size: 7.8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      border-radius: 10px;
+      padding: 2px 7px;
+      margin-right: 4px;
+      background: var(--blue-2);
+      color: var(--blue);
+    }
+
+    .tag.green { background: var(--green-2); color: var(--green); }
+    .tag.amber { background: var(--amber-2); color: var(--amber); }
+    .tag.red { background: var(--red-2); color: var(--red); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 10px 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px 12px;
+      page-break-inside: avoid;
+    }
+
+    .card h3, .card h4 { margin-top: 0; }
+
+    .toc {
+      columns: 2;
+      column-gap: 30px;
+      margin-top: 14px;
+    }
+
+    .toc div {
+      break-inside: avoid;
+      padding: 5px 0;
+      border-bottom: 1px dotted var(--line);
+    }
+
+    .toc b { color: var(--blue); display: inline-block; min-width: 22px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 13px;
+      font-size: 8.7pt;
+    }
+
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+
+    th {
+      text-align: left;
+      color: #ffffff;
+      background: var(--blue);
+      padding: 6px 7px;
+      border: 1px solid var(--blue);
+      font-weight: 600;
+    }
+
+    td {
+      vertical-align: top;
+      padding: 6px 7px;
+      border: 1px solid var(--line);
+    }
+
+    tbody tr:nth-child(even) td { background: var(--soft); }
+    .id { white-space: nowrap; font-weight: 700; color: var(--blue); }
+    .priority { white-space: nowrap; text-align: center; font-weight: 700; }
+
+    .architecture {
+      margin: 14px 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      page-break-inside: avoid;
+      background: #fbfcff;
+    }
+
+    .arch-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .arch-row.two { grid-template-columns: repeat(2, 1fr); }
+    .arch-node {
+      border: 1.5px solid #8ca0d6;
+      background: #eef2ff;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+      font-size: 8.5pt;
+      font-weight: 600;
+    }
+
+    .arch-node.green { border-color: #7fb79f; background: #eef9f4; }
+    .arch-node.amber { border-color: #c9a758; background: #fff8e7; }
+    .arch-node.gray { border-color: #aeb8c8; background: #f3f5f8; }
+
+    .arrow {
+      text-align: center;
+      color: var(--blue);
+      font-size: 15pt;
+      height: 23px;
+      line-height: 23px;
+    }
+
+    .module-box {
+      border: 2px solid var(--blue);
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+    }
+
+    .module-title {
+      text-align: center;
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 7px;
+    }
+
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .module-item {
+      background: var(--blue-2);
+      padding: 6px 4px;
+      text-align: center;
+      border-radius: 4px;
+      font-size: 8pt;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+      gap: 5px;
+      align-items: center;
+      margin: 12px 0;
+      page-break-inside: avoid;
+    }
+
+    .flow .step {
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      padding: 8px 5px;
+      text-align: center;
+      font-size: 8pt;
+      min-height: 55px;
+    }
+
+    .flow .chev { color: var(--blue); font-size: 16pt; }
+
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+
+    .checklist li {
+      position: relative;
+      padding-left: 18px;
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .avoid-break { page-break-inside: avoid; }
+    .muted { color: var(--muted); }
+    .small { font-size: 8.4pt; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+
+    .signature {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+    }
+
+    .signature div {
+      border-top: 1px solid var(--ink);
+      padding-top: 5px;
+      margin-top: 25px;
+      color: var(--muted);
+      font-size: 8.5pt;
+    }
+
+    @media print {
+      html, body { background: #fff; }
+      body { max-width: none; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="cover">
+    <div class="eyebrow">Software Requirements Specification</div>
+    <div class="cover-title">
+      <h1>Simplified Billing &amp;<br>Inventory Management System</h1>
+      <div class="subtitle">Offline Desktop Application</div>
+      <div class="edition">Functional Requirements, Non-Functional Requirements and Solution Architecture</div>
+    </div>
+    <div class="cover-meta">
+      <div>
+        <div class="meta-label">Document version</div>
+        <div class="meta-value">1.0 — Proposed Baseline</div>
+      </div>
+      <div>
+        <div class="meta-label">Prepared on</div>
+        <div class="meta-value">31 July 2026</div>
+      </div>
+      <div>
+        <div class="meta-label">Primary deployment</div>
+        <div class="meta-value">Single-shop, single-workstation, offline</div>
+      </div>
+      <div>
+        <div class="meta-label">Target users</div>
+        <div class="meta-value">Small retail and grocery shops</div>
+      </div>
+      <div>
+        <div class="meta-label">Technology baseline</div>
+        <div class="meta-value">Java 21, Spring Boot, React, MySQL</div>
+      </div>
+      <div>
+        <div class="meta-label">Document status</div>
+        <div class="meta-value">For review and approval</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section first" id="document-control">
+    <div class="section-number">Document control</div>
+    <h2>Purpose and Contents</h2>
+    <p class="lead">
+      This document defines the proposed functional scope, quality attributes, business rules,
+      deployment model and acceptance targets for a desktop-installable billing and inventory
+      application that performs all core operations without internet access.
+    </p>
+
+    <div class="callout">
+      <strong>Baseline decision:</strong> The first release is one authoritative application,
+      one local Spring Boot service and one local MySQL database on a single shop computer.
+      Optional multi-terminal LAN operation and cloud synchronization are outside the MVP.
+    </div>
+
+    <h3>Table of contents</h3>
+    <div class="toc">
+      <div><b>1</b> Executive summary</div>
+      <div><b>2</b> Scope and assumptions</div>
+      <div><b>3</b> Technology and architecture</div>
+      <div><b>4</b> Roles and permissions</div>
+      <div><b>5</b> Functional requirements</div>
+      <div><b>6</b> Business rules</div>
+      <div><b>7</b> Non-functional requirements</div>
+      <div><b>8</b> Data and integration requirements</div>
+      <div><b>9</b> Acceptance scenarios</div>
+      <div><b>10</b> Delivery scope and roadmap</div>
+      <div><b>11</b> Risks and decisions</div>
+      <div><b>12</b> Glossary and approval</div>
+    </div>
+
+    <h3>Requirement notation</h3>
+    <table>
+      <thead>
+        <tr><th>Notation</th><th>Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="id">FR-xxx</td><td>Functional requirement defining system behavior.</td></tr>
+        <tr><td class="id">BR-xxx</td><td>Mandatory business rule or data-integrity constraint.</td></tr>
+        <tr><td class="id">NFR-xxx</td><td>Measurable non-functional or quality requirement.</td></tr>
+        <tr><td class="priority">Must</td><td>Required for MVP acceptance.</td></tr>
+        <tr><td class="priority">Should</td><td>Important but may be scheduled after the initial MVP.</td></tr>
+        <tr><td class="priority">Could</td><td>Optional enhancement.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="executive-summary">
+    <div class="section-number">1</div>
+    <h2>Executive Summary</h2>
+    <p class="lead">
+      The product is a fast, keyboard-first billing and stock-control application for small
+      shops. It replaces handwritten bills and disconnected spreadsheets with a reliable local
+      transaction system while keeping operation simple for cashiers and owners.
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Primary outcomes</h3>
+        <ul class="checklist">
+          <li>Complete sales rapidly using a barcode scanner.</li>
+          <li>Maintain accurate stock automatically.</li>
+          <li>Track purchases, returns and stock movements.</li>
+          <li>Track customer Udhaar through an immutable Khata ledger.</li>
+          <li>Print 58 mm and 80 mm thermal receipts.</li>
+          <li>Operate without internet or a cloud account.</li>
+          <li>Recover safely from crashes, printer failures and updates.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Product principles</h3>
+        <ul class="checklist">
+          <li>Scanner and keyboard first.</li>
+          <li>Server-authoritative financial calculations.</li>
+          <li>Atomic checkout and stock deduction.</li>
+          <li>No deletion of completed financial history.</li>
+          <li>Local ownership of business data.</li>
+          <li>Simple MVP with explicit future boundaries.</li>
+          <li>Backups treated as a core workflow.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Success measures</h3>
+    <table>
+      <thead>
+        <tr><th>Measure</th><th>Target outcome</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Normal barcode sale</td><td>Cashier completes the workflow without using a mouse.</td></tr>
+        <tr><td>Internet dependency</td><td>Zero internet dependency for installation and core daily operation.</td></tr>
+        <tr><td>Checkout integrity</td><td>No partial invoice, payment, stock or Khata updates.</td></tr>
+        <tr><td>Duplicate prevention</td><td>Repeated checkout submission creates no duplicate sale.</td></tr>
+        <tr><td>Disaster readiness</td><td>Owner can create, verify and restore an encrypted external backup.</td></tr>
+        <tr><td>Operational clarity</td><td>UI clearly distinguishes sale failure, sale success and print failure.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="scope">
+    <div class="section-number">2</div>
+    <h2>Scope and Assumptions</h2>
+
+    <h3>2.1 MVP scope</h3>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Included</h4>
+        <ul>
+          <li>Offline desktop installation and setup</li>
+          <li>Local users, roles and authentication</li>
+          <li>Shop and receipt configuration</li>
+          <li>Products, categories, barcodes and stock ledger</li>
+          <li>Suppliers, purchases and purchase returns</li>
+          <li>POS, payments, GST, discounts and billing</li>
+          <li>Sales cancellation and controlled sales returns</li>
+          <li>Customers, Udhaar and Khata settlements</li>
+          <li>Dashboard, operational reports and exports</li>
+          <li>Thermal printing and reprinting</li>
+          <li>Encrypted backup, restore, updates and diagnostics</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Deferred</h4>
+        <ul>
+          <li>Multi-store operation</li>
+          <li>Multiple independent offline databases and synchronization</li>
+          <li>Cloud backup or cloud reporting</li>
+          <li>Online payment-gateway confirmation</li>
+          <li>Automatic WhatsApp or SMS delivery</li>
+          <li>E-invoice and e-way bill integrations</li>
+          <li>Loyalty schemes and promotional engines</li>
+          <li>Native mobile applications</li>
+          <li>Direct integrations with all weighing-scale models</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>2.2 Operating assumptions</h3>
+    <ul>
+      <li>The first release operates on one shop workstation with one local database.</li>
+      <li>Barcode scanners normally emulate keyboard input and terminate scans with Enter.</li>
+      <li>Thermal printers are installed through the operating-system print subsystem.</li>
+      <li>UPI and card payments are recorded after the cashier confirms payment externally; the MVP does not verify them online.</li>
+      <li>The owner is responsible for connecting an external drive or selecting a separate backup destination.</li>
+      <li>The application stores money in INR by default but keeps currency configurable.</li>
+      <li>GST behavior is configurable because some shops or products may be non-GST.</li>
+    </ul>
+
+    <h3>2.3 Constraints</h3>
+    <ul>
+      <li>Backend: Java 21 and Spring Boot 3.x modular monolith.</li>
+      <li>Persistence: MySQL 8.4 LTS with Spring Data JPA and Flyway migrations.</li>
+      <li>Desktop UI: React with Tailwind CSS hosted in an Electron shell.</li>
+      <li>Security: local authentication, role-based access and protected loopback API.</li>
+      <li>Core assets, libraries, fonts and documentation must be packaged locally.</li>
+      <li>Business-critical records are immutable and corrected through reversal transactions.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="architecture">
+    <div class="section-number">3</div>
+    <h2>Technology and Solution Architecture</h2>
+
+    <h3>3.1 Runtime architecture</h3>
+    <div class="architecture">
+      <div class="arch-row">
+        <div class="arch-node gray">USB Barcode Scanner</div>
+        <div class="arch-node gray">Keyboard &amp; Mouse</div>
+        <div class="arch-node gray">Thermal Printer</div>
+      </div>
+      <div class="arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ↑</div>
+      <div class="arch-row two">
+        <div class="arch-node">Electron Desktop Shell<br><span class="muted">window, lifecycle, printing, secure bridge</span></div>
+        <div class="arch-node">React + Tailwind UI<br><span class="muted">POS, inventory, Khata, reports</span></div>
+      </div>
+      <div class="arrow">↓ &nbsp; Secure loopback REST API &nbsp; ↓</div>
+      <div class="module-box">
+        <div class="module-title">Spring Boot Modular Monolith — Java 21</div>
+        <div class="module-grid">
+          <div class="module-item">Auth &amp; Store</div>
+          <div class="module-item">Inventory</div>
+          <div class="module-item">Purchases</div>
+          <div class="module-item">Sales &amp; POS</div>
+          <div class="module-item">Customers &amp; Khata</div>
+          <div class="module-item">Reports &amp; Audit</div>
+          <div class="module-item">Backup &amp; Restore</div>
+          <div class="module-item">Receipt Service</div>
+          <div class="module-item">Diagnostics &amp; Jobs</div>
+        </div>
+      </div>
+      <div class="arrow">↓ &nbsp; Spring Data JPA / Transactions &nbsp; ↓</div>
+      <div class="arch-row">
+        <div class="arch-node green">Managed Local MySQL</div>
+        <div class="arch-node amber">Application Data<br><span class="muted">logos, exports, logs</span></div>
+        <div class="arch-node green">Encrypted Backups<br><span class="muted">external drive or selected folder</span></div>
+      </div>
+    </div>
+
+    <h3>3.2 Architectural style</h3>
+    <p>
+      The backend is a modular monolith organized by business feature. Each module contains its
+      controller, DTO, application service, domain model and repository. A module may call another
+      module only through an exposed service interface; it must not access another module’s
+      repositories directly.
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Layer responsibilities</h4>
+        <ul>
+          <li><strong>Controller:</strong> HTTP mapping, authentication context and DTO validation.</li>
+          <li><strong>Application service:</strong> Use-case orchestration and transaction boundaries.</li>
+          <li><strong>Domain:</strong> Business rules, calculations, states and invariants.</li>
+          <li><strong>Repository:</strong> Persistence and locked queries.</li>
+          <li><strong>Infrastructure:</strong> printing, backups, files and OS integration.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Cross-cutting components</h4>
+        <ul>
+          <li>JWT/session security and role checks</li>
+          <li>Bean Validation and consistent API errors</li>
+          <li>Audit and correlation identifiers</li>
+          <li>Central money, tax and rounding policies</li>
+          <li>Flyway schema migrations</li>
+          <li>Health checks, rotating logs and diagnostics</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>3.3 Checkout consistency boundary</h3>
+    <div class="flow">
+      <div class="step"><strong>1. Submit</strong><br>Cart + payment + idempotency key</div>
+      <div class="chev">›</div>
+      <div class="step"><strong>2. Validate</strong><br>User, products, price, tax and stock</div>
+      <div class="chev">›</div>
+      <div class="step"><strong>3. Commit</strong><br>Invoice, payment, stock and Khata atomically</div>
+      <div class="chev">›</div>
+      <div class="step"><strong>4. Print</strong><br>Only after database commit</div>
+    </div>
+
+    <div class="callout green">
+      A printer failure never cancels a committed sale. The invoice remains searchable and
+      reprintable. A database failure rolls back the complete checkout.
+    </div>
+
+    <h3>3.4 Deployment profile</h3>
+    <table>
+      <thead>
+        <tr><th>Component</th><th>Deployment</th><th>Network exposure</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Electron + React</td><td>Installed desktop application</td><td>No remote navigation required</td></tr>
+        <tr><td>Spring Boot</td><td>Application-managed local process/service</td><td>Loopback interface only</td></tr>
+        <tr><td>MySQL</td><td>Application-managed local instance</td><td>Loopback interface only</td></tr>
+        <tr><td>Backups</td><td>Selected local, external or network folder</td><td>No cloud dependency</td></tr>
+        <tr><td>Updates</td><td>Signed offline installation package</td><td>No forced online update</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="roles">
+    <div class="section-number">4</div>
+    <h2>Roles and Permissions</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Owner/Admin</th>
+          <th>Cashier</th>
+          <th>Inventory Manager</th>
+          <th>Viewer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Use POS and print receipts</td><td class="center">Yes</td><td class="center">Yes</td><td class="center">Optional</td><td class="center">No</td></tr>
+        <tr><td>Apply discount within configured limit</td><td class="center">Yes</td><td class="center">Yes</td><td class="center">No</td><td class="center">No</td></tr>
+        <tr><td>Override price or discount limit</td><td class="center">Yes</td><td class="center">No</td><td class="center">No</td><td class="center">No</td></tr>
+        <tr><td>Manage products and purchases</td><td class="center">Yes</td><td class="center">No</td><td class="center">Yes</td><td class="center">No</td></tr>
+        <tr><td>Post stock adjustments</td><td class="center">Yes</td><td class="center">No</td><td class="center">Yes</td><td class="center">No</td></tr>
+        <tr><td>Cancel invoice or approve return</td><td class="center">Yes</td><td class="center">No</td><td class="center">No</td><td class="center">No</td></tr>
+        <tr><td>Record Khata settlement</td><td class="center">Yes</td><td class="center">Yes</td><td class="center">No</td><td class="center">No</td></tr>
+        <tr><td>View purchase cost and profit</td><td class="center">Yes</td><td class="center">No</td><td class="center">Yes</td><td class="center">Yes</td></tr>
+        <tr><td>Configure users, backup and restore</td><td class="center">Yes</td><td class="center">No</td><td class="center">No</td><td class="center">No</td></tr>
+        <tr><td>View reports</td><td class="center">Yes</td><td class="center">Limited</td><td class="center">Inventory</td><td class="center">Yes</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout amber">
+      Permissions must be enforced by Spring Security on the backend. Hiding a button in the
+      desktop UI is not an authorization control.
+    </div>
+  </section>
+
+  <section class="section" id="functional-requirements">
+    <div class="section-number">5</div>
+    <h2>Functional Requirements</h2>
+
+    <h3>5.1 Installation and application lifecycle</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-INS-01</td><td>Provide a guided offline installer that includes all required application runtimes and initializes the local database.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-02</td><td>Installation shall not require separately installed Java, Node.js, MySQL, Docker or internet access.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-03</td><td>Create desktop and Start-menu shortcuts and record application, database and schema versions.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-04</td><td>On launch, start or connect to MySQL, start Spring Boot, verify health, run applicable migrations and then open the login screen.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-05</td><td>Prevent conflicting application instances from managing the same local database.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-06</td><td>Provide a recovery screen for startup failures with retry, restore, log export and safe shutdown actions.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INS-07</td><td>Preserve business data by default during uninstall and require separate confirmation before data removal.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.2 Store setup, users and authentication</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-AUT-01</td><td>A first-run wizard shall capture shop identity, GST settings, timezone, invoice format, receipt width, printer, backup destination and first administrator.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-AUT-02</td><td>Authenticate users entirely against local records and support administrator, cashier, inventory manager and viewer roles.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-AUT-03</td><td>Support secure password changes, administrator-controlled password reset and a configured offline owner-recovery method.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-AUT-04</td><td>Lock or throttle accounts after repeated failed sign-in attempts and audit authentication events.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-AUT-05</td><td>Lock the application after configurable inactivity and support rapid cashier switching using a password or PIN.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-AUT-06</td><td>Require administrator approval for price overrides, excessive discounts, cancellations, returns, restores and sensitive configuration changes.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.3 Product and inventory management</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-INV-01</td><td>Create, view, edit, deactivate, search, sort and page products and categories.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-02</td><td>Maintain product name, receipt name, barcode, SKU, category, unit, HSN, GST rate, purchase cost, selling price, stock and minimum-stock level.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-03</td><td>Support piece, kilogram, gram, litre, millilitre, packet, box and dozen units, including decimal quantities for loose products.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-04</td><td>Generate unique internal barcodes without a remote service and print configurable barcode labels.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-INV-05</td><td>Record every stock change as an immutable ledger transaction with type, quantity, reference, user, timestamp and reason.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-06</td><td>Display low-stock and out-of-stock alerts and calculate reorder suggestions.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-07</td><td>Support opening-stock import, CSV import preview, validation, error reporting and CSV export.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-INV-08</td><td>Support physical-stock counts saved as drafts and posted as audited adjustments.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-INV-09</td><td>Prevent duplicate active barcodes and SKUs through application and database validation.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.4 Suppliers and purchases</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-PUR-01</td><td>Create, edit, deactivate and search suppliers with contact, address and GST details.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PUR-02</td><td>Record supplier invoices with products, quantities, costs, tax, discount, payment status and supplier invoice reference.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PUR-03</td><td>Increase stock and write stock-ledger entries atomically when a purchase is confirmed.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PUR-04</td><td>Support paid, partially paid and unpaid purchase states.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-PUR-05</td><td>Prevent duplicate supplier invoice references for the same supplier unless an authorized override is recorded.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PUR-06</td><td>Support purchase returns that deduct stock, update supplier balance where applicable and require a reason.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PUR-07</td><td>Attach local invoice images or PDF files and keep them within managed application storage.</td><td class="priority">Could</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.5 Point of sale and billing</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-POS-01</td><td>Use a 70/30 desktop layout: cart on the left and barcode search, totals and checkout on the right.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-02</td><td>Add a product when scanner input ends with Enter; repeated scans increment quantity and unknown barcodes show a recoverable warning.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-03</td><td>Restore focus to barcode entry after item addition and after closing cart or payment dialogs.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-04</td><td>Support quantity increment, decrement, removal, decimal quantity, cart clearing and optional invoice notes.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-05</td><td>Support line-level and bill-level percentage or fixed discounts subject to role limits.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-06</td><td>Calculate subtotal, discount, taxable amount, CGST/SGST or IGST, rounding and final payable amount on the backend.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-07</td><td>Record cash, UPI, card and Udhaar payments; capture tendered cash, change and optional payment reference.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-08</td><td>Support split payment across permitted payment modes.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-POS-09</td><td>At checkout, revalidate product status, price and stock; create invoice, items, payment, stock and Khata updates in one transaction.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-10</td><td>Use an idempotency key so repeated submission returns the original result rather than creating another invoice.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-11</td><td>Support holding and resuming a cart without reserving or deducting stock; revalidate it on resume.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-POS-12</td><td>Persist an optional recoverable cart draft after an abnormal application shutdown without treating it as a sale.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-POS-13</td><td>Implement F1 barcode focus, F2 payment, F4 checkout/print and Esc cart-clear request, plus accessible cart-navigation shortcuts.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.6 Cancellation, returns and refunds</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-RET-01</td><td>Completed invoices shall not be physically deleted.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-02</td><td>An authorized user may cancel an invoice with a mandatory reason, restoring stock and reversing payment and Khata effects.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-03</td><td>Search an original sale by invoice number, customer, phone or date and return selected quantities.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-04</td><td>Prevent cumulative returned quantity from exceeding net sold quantity.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-05</td><td>Reverse applicable discounts and taxes and record the refund mode.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-06</td><td>Return goods to saleable stock or classify them as damaged, with an auditable reason.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-RET-07</td><td>Generate a return receipt or credit note linked to the original invoice.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.7 Customers and Khata</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-KHA-01</td><td>Create, edit, deactivate and search customers by name and phone, with optional address, GSTIN, notes and credit limit.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-02</td><td>Require a customer for Udhaar and display current due and projected balance before confirmation.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-03</td><td>Create immutable ledger entries for opening balance, credit sale, settlement, return, cancellation and authorized adjustment.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-04</td><td>Accept full or partial settlement using cash, UPI, card or other configured mode and generate a receipt.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-05</td><td>Prevent settlement greater than due unless advance balances are explicitly enabled.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-06</td><td>Generate a date-filtered customer statement showing invoices, settlements, adjustments and running balance.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-KHA-07</td><td>Provide printable and CSV/PDF statement exports without internet access.</td><td class="priority">Should</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.8 Receipt printing</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-PRN-01</td><td>Discover operating-system printers, configure a default printer and provide a non-financial test print.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-02</td><td>Support clean monochrome 58 mm and 80 mm thermal receipt profiles.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-03</td><td>Print shop, invoice, cashier, customer, item, tax, payment and Khata details as applicable.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-04</td><td>Trigger printing only after the sale transaction commits.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-05</td><td>Queue failed print attempts locally and allow retry without creating another invoice.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-06</td><td>Mark reprints as duplicate where configured while retaining the original invoice number and date.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-PRN-07</td><td>Provide PDF or HTML receipt export when a printer is unavailable.</td><td class="priority">Should</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.9 Dashboard and reports</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-REP-01</td><td>Display today’s gross sales, net sales, bill count, average bill, payment totals, Udhaar, collections and estimated gross profit.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-REP-02</td><td>Display low-stock, out-of-stock and top-selling product summaries.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-REP-03</td><td>Provide invoice, item, category, payment, GST, discount, cancellation and return reports.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-REP-04</td><td>Provide current stock valuation, stock movement, adjustment, damaged-stock and slow/fast-moving reports.</td><td class="priority">Should</td></tr>
+        <tr><td class="id">FR-REP-05</td><td>Calculate gross profit using purchase cost captured on each sale item, not the product’s current cost.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-REP-06</td><td>Support date, cashier, product, category, customer and payment-mode filters.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-REP-07</td><td>Export reports to local CSV and provide print-friendly views; long exports shall show progress and permit cancellation.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.10 Backup, restore, updates and diagnostics</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td class="id">FR-BCK-01</td><td>Create scheduled encrypted backups to a configured local, external-drive or network-folder destination.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-BCK-02</td><td>Verify backup creation, retain configurable generations and keep backup failures visible until resolved or acknowledged.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-BCK-03</td><td>Provide “Back up now” with destination selection, progress, result, timestamp and file size.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-BCK-04</td><td>Validate backup integrity, version and password before administrator-authorized restoration.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-BCK-05</td><td>Back up the current database before restore when possible, block normal use during restore and audit the result.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-UPD-01</td><td>Accept signed offline update packages, show current versions and verify package signature and compatibility.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-UPD-02</td><td>Create a pre-update backup, apply Flyway migrations and abort safely when migration validation fails.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-DIA-01</td><td>Show application, database, disk, printer and backup health in a local diagnostics screen.</td><td class="priority">Must</td></tr>
+        <tr><td class="id">FR-DIA-02</td><td>Create a sanitized support bundle containing versions, configuration summary, migration status and rotating logs.</td><td class="priority">Must</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="business-rules">
+    <div class="section-number">6</div>
+    <h2>Business Rules and Data Integrity</h2>
+
+    <table>
+      <thead><tr><th>ID</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td class="id">BR-001</td><td>The backend is authoritative for price, discount, tax, rounding, stock availability and final payable amount.</td></tr>
+        <tr><td class="id">BR-002</td><td>Money and measurable quantities use decimal arithmetic with centrally configured scale and rounding; binary floating-point types are prohibited.</td></tr>
+        <tr><td class="id">BR-003</td><td>Checkout saves invoice, items, payment, stock transactions and Khata effects within one database transaction.</td></tr>
+        <tr><td class="id">BR-004</td><td>Stock is revalidated under a lock or atomic conditional update immediately before deduction.</td></tr>
+        <tr><td class="id">BR-005</td><td>Products are locked in a consistent order during checkout to reduce deadlock risk.</td></tr>
+        <tr><td class="id">BR-006</td><td>Every stock change requires a stock-ledger entry; direct untracked stock edits are prohibited.</td></tr>
+        <tr><td class="id">BR-007</td><td>A completed financial record cannot be physically deleted or overwritten; corrections use a linked reversal record.</td></tr>
+        <tr><td class="id">BR-008</td><td>Historical sale items retain original selling price, purchase cost, discount and tax values.</td></tr>
+        <tr><td class="id">BR-009</td><td>Invoice numbers are unique and generated by a database-controlled sequence or equivalent concurrency-safe mechanism.</td></tr>
+        <tr><td class="id">BR-010</td><td>Idempotency keys are required for checkout, cancellation, return and Khata settlement.</td></tr>
+        <tr><td class="id">BR-011</td><td>Udhaar requires an identified customer and credit-limit validation according to configuration.</td></tr>
+        <tr><td class="id">BR-012</td><td>A return quantity cannot exceed the remaining returnable quantity from the original sale.</td></tr>
+        <tr><td class="id">BR-013</td><td>Printing and export occur after commit and cannot change the outcome of a financial transaction.</td></tr>
+        <tr><td class="id">BR-014</td><td>All timestamps use the configured shop timezone for display; the system records a stable transaction timestamp and business date.</td></tr>
+        <tr><td class="id">BR-015</td><td>Clock rollback, administrator overrides, backup restore and update operations generate audit events.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>6.1 Standard billing calculation order</h3>
+    <ol>
+      <li>Calculate line base amount: quantity × unit price.</li>
+      <li>Apply authorized line discount.</li>
+      <li>Allocate applicable bill-level discount.</li>
+      <li>Determine taxable amount.</li>
+      <li>Calculate CGST and SGST, or IGST, according to configuration.</li>
+      <li>Aggregate invoice subtotal, discount and tax.</li>
+      <li>Apply configured final rounding.</li>
+      <li>Validate payment allocation equals final payable amount.</li>
+    </ol>
+
+    <div class="callout">
+      The exact inclusive-versus-exclusive GST policy and rounding scale must be approved before
+      database and API implementation. Test vectors should be captured as executable unit tests.
+    </div>
+  </section>
+
+  <section class="section" id="non-functional-requirements">
+    <div class="section-number">7</div>
+    <h2>Non-Functional Requirements</h2>
+
+    <h3>7.1 Offline operation</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-OFF-01</td><td>All core operations work with networking disabled.</td><td>Complete purchase, sale, return, Khata, print, report and backup acceptance tests offline.</td></tr>
+        <tr><td class="id">NFR-OFF-02</td><td>All runtime assets are installed locally.</td><td>No CDN fonts, scripts, styles, icons or mandatory remote APIs.</td></tr>
+        <tr><td class="id">NFR-OFF-03</td><td>Application startup never waits for the internet.</td><td>Reach login/POS normally with all network adapters disabled.</td></tr>
+        <tr><td class="id">NFR-OFF-04</td><td>Business data stays local by default.</td><td>No outbound business-data transfer unless an optional integration is explicitly configured.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.2 Performance and capacity</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Operation or capacity</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-PER-01</td><td>Cold application startup</td><td>10 seconds or less on the recommended workstation.</td></tr>
+        <tr><td class="id">NFR-PER-02</td><td>Warm application startup</td><td>5 seconds or less.</td></tr>
+        <tr><td class="id">NFR-PER-03</td><td>Barcode lookup</td><td>95% complete within 150 ms.</td></tr>
+        <tr><td class="id">NFR-PER-04</td><td>Product search</td><td>95% complete within 300 ms for 100,000 products.</td></tr>
+        <tr><td class="id">NFR-PER-05</td><td>Cart recalculation</td><td>Visible UI result within 100 ms.</td></tr>
+        <tr><td class="id">NFR-PER-06</td><td>Checkout</td><td>95% commit within 1 second, excluding printing.</td></tr>
+        <tr><td class="id">NFR-PER-07</td><td>Current-day dashboard</td><td>Load within 2 seconds.</td></tr>
+        <tr><td class="id">NFR-PER-08</td><td>Standard 30-day report</td><td>Load within 3 seconds.</td></tr>
+        <tr><td class="id">NFR-CAP-01</td><td>Supported data volume</td><td>100,000 products, 1 million invoices and 10 million invoice items without redesign.</td></tr>
+        <tr><td class="id">NFR-CAP-02</td><td>Historical retention</td><td>At least five years of ordinary shop data, subject to available disk capacity.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.3 Reliability and recovery</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-REL-01</td><td>No partial financial transaction.</td><td>Fault-injection tests prove complete commit or rollback.</td></tr>
+        <tr><td class="id">NFR-REL-02</td><td>No duplicate business transaction.</td><td>Repeated requests with one idempotency key produce one transaction.</td></tr>
+        <tr><td class="id">NFR-REL-03</td><td>Application crash recovery.</td><td>No loss of committed transactions; usable restart within 5 minutes.</td></tr>
+        <tr><td class="id">NFR-REL-04</td><td>Operating-system crash recovery.</td><td>Database performs automatic recovery; usable restart within 15 minutes subject to disk integrity.</td></tr>
+        <tr><td class="id">NFR-REL-05</td><td>Printer independence.</td><td>Printer cancellation or failure leaves the committed invoice intact and reprintable.</td></tr>
+        <tr><td class="id">NFR-REL-06</td><td>Low-disk protection.</td><td>Warn before critical threshold and prevent unsafe exports/backups without corrupting sales.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.4 Backup and disaster recovery</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-BCK-01</td><td>Crash recovery point</td><td>Zero loss of transactions already committed to healthy storage.</td></tr>
+        <tr><td class="id">NFR-BCK-02</td><td>Device-loss recovery point</td><td>No more than 24 hours when daily external backups are maintained.</td></tr>
+        <tr><td class="id">NFR-BCK-03</td><td>Device-loss recovery time</td><td>Restore on replacement workstation within 4 hours.</td></tr>
+        <tr><td class="id">NFR-BCK-04</td><td>Backup confidentiality</td><td>Every portable backup is encrypted; credentials are excluded from logs.</td></tr>
+        <tr><td class="id">NFR-BCK-05</td><td>Restore verification</td><td>Restore tests are performed at least quarterly and before major releases.</td></tr>
+        <tr><td class="id">NFR-BCK-06</td><td>Backup identity</td><td>File metadata contains shop ID, time, application version and schema version.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.5 Security</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-SEC-01</td><td>Local service isolation</td><td>Spring Boot and MySQL bind to loopback only in single-workstation mode.</td></tr>
+        <tr><td class="id">NFR-SEC-02</td><td>Unique installation secrets</td><td>No shipped default database password or signing secret.</td></tr>
+        <tr><td class="id">NFR-SEC-03</td><td>Credential protection</td><td>Secrets are held in OS-protected storage or a restricted configuration location.</td></tr>
+        <tr><td class="id">NFR-SEC-04</td><td>Desktop process isolation</td><td>React renderer has no unrestricted Node.js or filesystem access.</td></tr>
+        <tr><td class="id">NFR-SEC-05</td><td>Authorization</td><td>Every protected backend action has role/permission integration tests.</td></tr>
+        <tr><td class="id">NFR-SEC-06</td><td>Password storage</td><td>Use an adaptive password hash with per-password salts.</td></tr>
+        <tr><td class="id">NFR-SEC-07</td><td>Update integrity</td><td>Unsigned, tampered or incompatible update packages are rejected.</td></tr>
+        <tr><td class="id">NFR-SEC-08</td><td>Sensitive logging</td><td>Passwords, tokens, database credentials and unnecessary customer details never appear in logs.</td></tr>
+        <tr><td class="id">NFR-SEC-09</td><td>Auditability</td><td>Login, override, adjustment, cancellation, return, restore and export events record user and timestamp.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.6 Usability and accessibility</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-USA-01</td><td>Keyboard-first sale</td><td>Trained cashier completes a normal sale without a mouse.</td></tr>
+        <tr><td class="id">NFR-USA-02</td><td>Scanner focus</td><td>Focus returns correctly after item addition and dialog close.</td></tr>
+        <tr><td class="id">NFR-USA-03</td><td>Desktop fit</td><td>Core screens work at 1366×768 without page-level horizontal scrolling.</td></tr>
+        <tr><td class="id">NFR-USA-04</td><td>Visible status</td><td>Success, warning and failure states use both color and text/icon meaning.</td></tr>
+        <tr><td class="id">NFR-USA-05</td><td>Error recovery</td><td>Recoverable failures preserve the cart and explain the next action.</td></tr>
+        <tr><td class="id">NFR-USA-06</td><td>Destructive actions</td><td>Cart clear, cancellation, restore and data removal require clear confirmation.</td></tr>
+        <tr><td class="id">NFR-USA-07</td><td>Focus and contrast</td><td>Interactive controls provide visible focus and readable high-contrast presentation.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.7 Printing and hardware</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-PRN-01</td><td>Receipt preparation</td><td>Complete within 500 ms after checkout response.</td></tr>
+        <tr><td class="id">NFR-PRN-02</td><td>Paper profiles</td><td>Verified test output for both 58 mm and 80 mm widths.</td></tr>
+        <tr><td class="id">NFR-PRN-03</td><td>Monochrome readability</td><td>Essential content remains legible without color or background graphics.</td></tr>
+        <tr><td class="id">NFR-PRN-04</td><td>Scanner throughput</td><td>Rapid sequential scans do not drop or merge barcode events.</td></tr>
+        <tr><td class="id">NFR-PRN-05</td><td>Hardware isolation</td><td>Failure of optional hardware adapters cannot stop core billing.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.8 Maintainability, testing and support</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-MNT-01</td><td>Modular boundaries</td><td>No direct cross-module repository access or circular module dependency.</td></tr>
+        <tr><td class="id">NFR-MNT-02</td><td>Schema control</td><td>Every database change is represented by a versioned Flyway migration.</td></tr>
+        <tr><td class="id">NFR-MNT-03</td><td>Critical test coverage</td><td>At least 80% branch coverage for sales, stock, payment, return and Khata service logic.</td></tr>
+        <tr><td class="id">NFR-MNT-04</td><td>MySQL verification</td><td>Repository, migration and concurrency tests run against MySQL.</td></tr>
+        <tr><td class="id">NFR-MNT-05</td><td>Diagnostics</td><td>Support bundle includes sanitized logs, versions, health and migration status.</td></tr>
+        <tr><td class="id">NFR-MNT-06</td><td>Log retention</td><td>Structured local logs rotate by size and age and cannot exhaust the disk.</td></tr>
+        <tr><td class="id">NFR-MNT-07</td><td>API consistency</td><td>Versioned <code>/api/v1</code> endpoints use DTOs and a consistent error contract.</td></tr>
+        <tr><td class="id">NFR-MNT-08</td><td>Architecture records</td><td>Material decisions are documented as Architecture Decision Records.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.9 Packaging and portability</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance target</th></tr></thead>
+      <tbody>
+        <tr><td class="id">NFR-PKG-01</td><td>Clean-machine installation</td><td>Install and run without development tools or manual command-line steps.</td></tr>
+        <tr><td class="id">NFR-PKG-02</td><td>Application/data separation</td><td>Mutable data is stored outside the read-only program installation directory.</td></tr>
+        <tr><td class="id">NFR-PKG-03</td><td>Upgrade safety</td><td>Existing business data is preserved and a pre-update backup is generated.</td></tr>
+        <tr><td class="id">NFR-PKG-04</td><td>Installation size</td><td>Target below approximately 1.5 GB excluding business data and backups.</td></tr>
+        <tr><td class="id">NFR-PKG-05</td><td>Recommended workstation</td><td>64-bit supported Windows environment, four-core CPU, 8 GB RAM, SSD and at least 5 GB initially free.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="data">
+    <div class="section-number">8</div>
+    <h2>Data and Integration Requirements</h2>
+
+    <h3>8.1 Core domain records</h3>
+    <table>
+      <thead><tr><th>Area</th><th>Principal records</th><th>Important relationships</th></tr></thead>
+      <tbody>
+        <tr><td>Store and security</td><td>Shop, User, Role, Permission, Refresh Session, Audit Event</td><td>User receives roles; events reference acting user.</td></tr>
+        <tr><td>Catalog</td><td>Product, Product Barcode, Category, Unit, Tax Rate</td><td>Product belongs to category/unit and carries tax configuration.</td></tr>
+        <tr><td>Inventory</td><td>Stock Balance, Stock Transaction, Stock Count</td><td>Every stock transaction references product, type and source record.</td></tr>
+        <tr><td>Purchasing</td><td>Supplier, Purchase, Purchase Item, Purchase Payment, Purchase Return</td><td>Confirmed purchase items increase stock.</td></tr>
+        <tr><td>Sales</td><td>Invoice, Invoice Item, Payment, Sale Return, Refund</td><td>Invoice items snapshot product, price, cost, tax and discount.</td></tr>
+        <tr><td>Khata</td><td>Customer, Khata Entry, Settlement</td><td>Credit sales and reversals create linked ledger entries.</td></tr>
+        <tr><td>Operations</td><td>Held Cart, Print Job, Backup Record, Application Setting</td><td>Operational records never redefine committed financial history.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>8.2 External interfaces</h3>
+    <table>
+      <thead><tr><th>Interface</th><th>MVP method</th><th>Failure behavior</th></tr></thead>
+      <tbody>
+        <tr><td>Barcode scanner</td><td>Keyboard-emulation input ending with Enter</td><td>Manual barcode entry remains available.</td></tr>
+        <tr><td>Thermal printer</td><td>Operating-system print subsystem</td><td>Queue retry; sale remains committed.</td></tr>
+        <tr><td>CSV files</td><td>Local file picker through secure desktop bridge</td><td>Preview errors; never partially post invalid import.</td></tr>
+        <tr><td>Backup storage</td><td>Selected folder, removable drive or network folder</td><td>Persistent warning; normal billing continues.</td></tr>
+        <tr><td>Offline updater</td><td>Signed installation package</td><td>Reject and retain current version on validation failure.</td></tr>
+        <tr><td>UPI/card terminal</td><td>Cashier-confirmed external payment</td><td>No automatic online verification in MVP.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>8.3 API conventions</h3>
+    <ul>
+      <li>Version endpoints under <code>/api/v1</code>.</li>
+      <li>Use request and response DTOs; never expose JPA entities.</li>
+      <li>Validate all input and return field-level errors.</li>
+      <li>Use pagination and bounded filters for large collections.</li>
+      <li>Return a consistent error containing code, message, field errors, timestamp, path and correlation ID.</li>
+      <li>Publish an OpenAPI description for development and support.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="acceptance">
+    <div class="section-number">9</div>
+    <h2>Acceptance Scenarios</h2>
+
+    <h3>9.1 Normal cash sale</h3>
+    <ol>
+      <li>Cashier signs in with the workstation offline.</li>
+      <li>Cashier scans products; repeated scans increment quantity.</li>
+      <li>POS displays current subtotal, discount, GST and payable amount.</li>
+      <li>Cashier presses F2, enters cash received and confirms.</li>
+      <li>System revalidates stock and atomically commits invoice, payment and stock ledger.</li>
+      <li>Receipt prints; barcode focus returns for the next sale.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> invoice and stock are correct, no mouse is required, and the flow works with networking disabled.</p>
+
+    <h3>9.2 Concurrent or duplicate checkout protection</h3>
+    <ol>
+      <li>Checkout is submitted twice using the same idempotency key.</li>
+      <li>The backend completes or locates the first committed result.</li>
+      <li>Both responses refer to the same invoice.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> one invoice, one payment and one stock deduction exist.</p>
+
+    <h3>9.3 Insufficient stock</h3>
+    <ol>
+      <li>A cart contains a quantity no longer available at checkout.</li>
+      <li>The backend rejects checkout before creating any financial record.</li>
+      <li>The POS preserves the cart and highlights affected items.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> no partial invoice, payment, Khata or stock mutation occurs.</p>
+
+    <h3>9.4 Udhaar sale and settlement</h3>
+    <ol>
+      <li>Cashier selects a customer and confirms an Udhaar payment.</li>
+      <li>System validates the credit policy and commits invoice, stock and Khata debit.</li>
+      <li>Later, cashier records a partial cash settlement.</li>
+      <li>System creates an immutable Khata credit and prints a settlement receipt.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> running balance and statement match the invoice and settlement.</p>
+
+    <h3>9.5 Printer failure</h3>
+    <ol>
+      <li>A valid checkout commits while the printer is unavailable.</li>
+      <li>POS shows “Sale completed; print failed” and retains a retry action.</li>
+      <li>Cashier reconnects the printer and reprints the original invoice.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> no duplicate sale is generated and reprint marking follows configuration.</p>
+
+    <h3>9.6 Crash during checkout</h3>
+    <ol>
+      <li>The application is forcibly terminated during the checkout request.</li>
+      <li>On restart, the backend checks the idempotency key and transaction state.</li>
+      <li>The POS displays the committed invoice or restores the unsubmitted cart.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> the outcome is unambiguous and contains no partial transaction.</p>
+
+    <h3>9.7 Backup and restore</h3>
+    <ol>
+      <li>Administrator creates an encrypted backup to a removable drive.</li>
+      <li>The application verifies and records the backup.</li>
+      <li>On a test installation, administrator selects the backup and supplies credentials.</li>
+      <li>The system restores, applies compatible migrations and validates core record counts.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> restored invoices, stock and Khata balances reconcile.</p>
+
+    <h3>9.8 Offline update</h3>
+    <ol>
+      <li>Administrator selects a signed compatible update package.</li>
+      <li>The system verifies signature, checks disk space and creates a backup.</li>
+      <li>The installer updates application components and applies migrations.</li>
+      <li>The application restarts and reports updated versions.</li>
+    </ol>
+    <p><strong>Pass condition:</strong> existing data remains intact; an invalid package is rejected without changing the installation.</p>
+  </section>
+
+  <section class="section" id="roadmap">
+    <div class="section-number">10</div>
+    <h2>Delivery Scope and Roadmap</h2>
+
+    <table>
+      <thead><tr><th>Stage</th><th>Deliverables</th><th>Exit condition</th></tr></thead>
+      <tbody>
+        <tr><td><strong>1. Foundation</strong></td><td>Architecture decisions, domain model, MySQL schema, Flyway, application skeleton, error contract and audit base.</td><td>Schema and module boundaries approved; clean startup succeeds.</td></tr>
+        <tr><td><strong>2. Store &amp; security</strong></td><td>First-run setup, local admin, roles, permissions, authentication and protected local API.</td><td>Offline login and authorization tests pass.</td></tr>
+        <tr><td><strong>3. Inventory &amp; purchases</strong></td><td>Catalog, units, barcodes, stock ledger, alerts, suppliers, purchases and returns.</td><td>Purchase-to-stock and adjustment reconciliation pass.</td></tr>
+        <tr><td><strong>4. POS &amp; billing</strong></td><td>Scanner-first cart, calculation engine, payments, checkout locking, invoice and thermal receipt.</td><td>Cash-sale, duplicate and insufficient-stock scenarios pass.</td></tr>
+        <tr><td><strong>5. Khata &amp; returns</strong></td><td>Customers, credit sales, settlements, statements, cancellation, sales return and refund.</td><td>Ledger and reversal reconciliation pass.</td></tr>
+        <tr><td><strong>6. Reports</strong></td><td>Dashboard, sales, profit, tax, stock and export reports.</td><td>Reports reconcile with test transactions.</td></tr>
+        <tr><td><strong>7. Desktop operations</strong></td><td>Installer, managed services, printing, encrypted backup/restore, updater and diagnostics.</td><td>Clean-machine, crash, restore and update tests pass.</td></tr>
+        <tr><td><strong>8. Release hardening</strong></td><td>Performance, security, concurrency, packaging and user-acceptance testing.</td><td>All Must requirements and critical NFR targets pass.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Future roadmap</h3>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Phase 2 candidates</h4>
+        <ul>
+          <li>Cashier shift reconciliation</li>
+          <li>Expense recording</li>
+          <li>Advanced barcode label printing</li>
+          <li>Batch and expiry tracking</li>
+          <li>Direct silent-print adapters</li>
+          <li>Optional weighing-scale adapter</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Future platform capabilities</h4>
+        <ul>
+          <li>Local-network multi-terminal mode</li>
+          <li>Cloud synchronization and remote reports</li>
+          <li>Multi-store inventory</li>
+          <li>Customer messaging integrations</li>
+          <li>E-invoice integrations</li>
+          <li>Mobile companion application</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="risks">
+    <div class="section-number">11</div>
+    <h2>Risks and Open Decisions</h2>
+
+    <h3>11.1 Principal risks</h3>
+    <table>
+      <thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>Bundled desktop footprint</td><td>Electron, Java and MySQL produce a relatively large installer.</td><td>Use a minimized Java runtime, exclude development artifacts and set an explicit size budget.</td></tr>
+        <tr><td>Database lifecycle complexity</td><td>Failed MySQL startup can block the application.</td><td>Managed startup, health checks, recovery UI, safe logs and tested repair procedures.</td></tr>
+        <tr><td>Single-device failure</td><td>Disk or computer loss can stop business and lose unbacked-up data.</td><td>Visible external-backup status, encrypted daily backups and documented replacement-device restore.</td></tr>
+        <tr><td>Thermal printer diversity</td><td>Margins and silent-print behavior vary by driver.</td><td>OS printing for MVP, 58/80 mm profiles, test-print wizard and limited certified-printer list.</td></tr>
+        <tr><td>Incorrect computer time</td><td>Financial reports and invoice order may be misleading.</td><td>Clock-rollback detection, restricted backdating and audit trail.</td></tr>
+        <tr><td>Tax-rule ambiguity</td><td>Incorrect GST or rounding affects bills and reports.</td><td>Approve calculation policy and test vectors before implementation.</td></tr>
+        <tr><td>MySQL redistribution licensing</td><td>Bundling MySQL Community server binaries may impose distribution obligations.</td><td>Complete project-specific licensing review before packaging MySQL; obtain an appropriate license or revise the installation model.</td></tr>
+        <tr><td>Premature multi-terminal scope</td><td>Synchronization and conflict handling delay the MVP.</td><td>Keep one authoritative database; add LAN clients only as a separate architecture phase.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>11.2 Decisions requiring approval</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Decision</th><th>Recommended baseline</th></tr></thead>
+      <tbody>
+        <tr><td class="id">DEC-01</td><td>Supported operating-system editions</td><td>One documented 64-bit Windows target for the first release.</td></tr>
+        <tr><td class="id">DEC-02</td><td>MySQL lifecycle</td><td>Application-managed local service/instance bound to loopback.</td></tr>
+        <tr><td class="id">DEC-03</td><td>Printing method</td><td>OS print flow first; certified silent printing later.</td></tr>
+        <tr><td class="id">DEC-04</td><td>Negative stock</td><td>Disallow by default; optional audited administrator override only if required.</td></tr>
+        <tr><td class="id">DEC-05</td><td>GST price mode</td><td>Choose inclusive or exclusive defaults and approve rounding examples.</td></tr>
+        <tr><td class="id">DEC-06</td><td>Invoice numbering</td><td>Financial-year prefix plus monotonic local database sequence.</td></tr>
+        <tr><td class="id">DEC-07</td><td>Backup encryption and owner recovery</td><td>Owner-defined backup password with documented recovery responsibility.</td></tr>
+        <tr><td class="id">DEC-08</td><td>LAN mode</td><td>Exclude from MVP; design as a later centrally hosted shop-server profile.</td></tr>
+        <tr><td class="id">DEC-09</td><td>MySQL distribution model</td><td>Complete licensing review before bundling server binaries in the desktop installer.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="glossary">
+    <div class="section-number">12</div>
+    <h2>Glossary and Approval</h2>
+
+    <table>
+      <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Atomic transaction</td><td>A group of database changes that all commit together or all roll back.</td></tr>
+        <tr><td>Barcode scanner</td><td>A device that normally sends scanned text as keyboard input.</td></tr>
+        <tr><td>Business date</td><td>The shop-accounting date assigned to a transaction.</td></tr>
+        <tr><td>CGST / SGST / IGST</td><td>Configured GST components recorded on taxable transactions.</td></tr>
+        <tr><td>Idempotency key</td><td>A unique request key that makes a retried financial operation return the same result.</td></tr>
+        <tr><td>Khata</td><td>The customer-credit ledger for Udhaar and subsequent settlements.</td></tr>
+        <tr><td>Loopback</td><td>Network access restricted to the same computer, normally through <code>127.0.0.1</code>.</td></tr>
+        <tr><td>Modular monolith</td><td>One deployable backend divided into strongly separated business modules.</td></tr>
+        <tr><td>RPO</td><td>Recovery Point Objective: maximum tolerable data loss measured in time.</td></tr>
+        <tr><td>RTO</td><td>Recovery Time Objective: target time to restore service.</td></tr>
+        <tr><td>Stock ledger</td><td>Immutable history explaining every increase or decrease in stock.</td></tr>
+        <tr><td>Udhaar</td><td>A sale amount recorded as credit owed by an identified customer.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout green">
+      <strong>Recommended next artifact:</strong> approve the open decisions, then create the
+      conceptual data model, table constraints and Flyway migration plan before scaffolding the
+      application.
+    </div>
+
+    <h3>Approval record</h3>
+    <div class="signature">
+      <div>Product owner / shop representative — name, signature and date</div>
+      <div>Solution architect / engineering lead — name, signature and date</div>
+    </div>
+
+    <p class="small muted center" style="margin-top: 35mm;">
+      End of Software Requirements Specification — Version 1.0
+    </p>
+  </section>
+</main>
+</body>
+</html>

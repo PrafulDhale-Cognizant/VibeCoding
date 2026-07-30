@@ -1,0 +1,31 @@
+appId: com.simplifiedbilling.desktop
+productName: Simplified Billing
+artifactName: Simplified-Billing-${version}-${arch}.${ext}
+
+directories:
+  output: release
+
+files:
+  - dist/**
+  - electron/**
+  - package.json
+
+extraResources:
+  - from: ../backend/target/billing-backend.jar
+    to: backend/billing-backend.jar
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+

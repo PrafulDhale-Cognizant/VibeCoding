@@ -1,0 +1,34 @@
+# IDE and operating-system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Java / Maven
+backend/target/
+*.log
+
+# Node / Electron
+desktop/node_modules/
+desktop/dist/
+desktop/release/
+desktop/.vite/
+
+# Local runtime data
+data/
+backups/
+logs/
+exports/
+backend/
+# Test and coverage output
+coverage/
+test-results/
+playwright-report/
+
