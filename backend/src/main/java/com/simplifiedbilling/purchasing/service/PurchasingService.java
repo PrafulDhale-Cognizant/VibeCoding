@@ -37,4 +37,17 @@ public interface PurchasingService {
 
     PurchasingPage<PurchasingResponses.PurchaseSummaryResponse> searchPurchases(
             String query, String supplierId, LocalDate from, LocalDate to, int page, int size);
+
+    PurchasingResponses.PurchaseReturnResponse returnPurchase(
+            String actorUserId, String purchaseId, String idempotencyKey,
+            PurchasingRequests.CreatePurchaseReturnRequest request);
+
+    PurchasingResponses.PurchaseReturnResponse getPurchaseReturn(String purchaseReturnId);
+
+    PurchasingPage<PurchasingResponses.PurchaseReturnSummaryResponse> searchPurchaseReturns(
+            String query, String supplierId, String purchaseId,
+            LocalDate from, LocalDate to, int page, int size);
+
+    PurchasingResponses.SupplierAnalyticsResponse getSupplierAnalytics(
+            LocalDate from, LocalDate to);
 }

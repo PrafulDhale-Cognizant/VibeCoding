@@ -32,6 +32,9 @@ public class SupplierPayableBalance {
     @Column(name = "outstanding_amount", precision = 19, scale = 2, nullable = false)
     private BigDecimal outstandingAmount;
 
+    @Column(name = "credit_amount", precision = 19, scale = 2, nullable = false)
+    private BigDecimal creditAmount;
+
     @Version
     @Column(nullable = false)
     private Long version;
@@ -47,6 +50,7 @@ public class SupplierPayableBalance {
         balance.supplier = supplier;
         balance.supplierId = supplier.getId();
         balance.outstandingAmount = BigDecimal.ZERO.setScale(2);
+        balance.creditAmount = BigDecimal.ZERO.setScale(2);
         balance.updatedAt = now;
         return balance;
     }
@@ -55,6 +59,26 @@ public class SupplierPayableBalance {
         outstandingAmount = outstandingAmount.add(amount);
         updatedAt = now;
         return outstandingAmount;
+    }
+
+    public SupplierBalanceMovement applyPurchase(BigDecimal amount, Instant now) {
+        BigDecimal creditUsed = creditAmount.min(amount);
+        creditAmount = creditAmount.subtract(creditUsed);
+        BigDecimal payableAdded = amount.subtract(creditUsed);
+        outstandingAmount = outstandingAmount.add(payableAdded);
+        updatedAt = now;
+        return new SupplierBalanceMovement(
+                payableAdded, BigDecimal.ZERO.setScale(2), outstandingAmount, creditAmount);
+    }
+
+    public SupplierBalanceMovement applyReturn(BigDecimal amount, Instant now) {
+        BigDecimal payableReduction = outstandingAmount.min(amount);
+        outstandingAmount = outstandingAmount.subtract(payableReduction);
+        BigDecimal creditAdded = amount.subtract(payableReduction);
+        creditAmount = creditAmount.add(creditAdded);
+        updatedAt = now;
+        return new SupplierBalanceMovement(
+                payableReduction, creditAdded, outstandingAmount, creditAmount);
     }
 
     public BigDecimal pay(BigDecimal amount, Instant now) {
@@ -69,6 +93,7 @@ public class SupplierPayableBalance {
     public String getSupplierId() { return supplierId; }
     public Supplier getSupplier() { return supplier; }
     public BigDecimal getOutstandingAmount() { return outstandingAmount; }
+    public BigDecimal getCreditAmount() { return creditAmount; }
     public long getVersion() { return version == null ? 0L : version; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

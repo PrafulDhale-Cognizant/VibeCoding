@@ -9,6 +9,7 @@ public enum StockReasonCode {
     FOUND_STOCK,
     DATA_CORRECTION,
     PURCHASE,
+    PURCHASE_RETURN,
     SALE,
     SALE_RETURN,
     OTHER

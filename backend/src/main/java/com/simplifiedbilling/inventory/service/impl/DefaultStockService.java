@@ -61,6 +61,7 @@ public class DefaultStockService implements StockService {
 
         if (request.reasonCode() == StockReasonCode.OPENING_STOCK
                 || request.reasonCode() == StockReasonCode.PURCHASE
+                || request.reasonCode() == StockReasonCode.PURCHASE_RETURN
                 || request.reasonCode() == StockReasonCode.SALE
                 || request.reasonCode() == StockReasonCode.SALE_RETURN) {
             throw new ApplicationException(

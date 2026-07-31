@@ -3,6 +3,7 @@ package com.simplifiedbilling.purchasing.service.impl;
 import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.inventory.service.PurchaseInventoryService;
 import com.simplifiedbilling.inventory.service.PurchaseProductSnapshot;
+import com.simplifiedbilling.inventory.service.PurchaseReturnInventoryService;
 import com.simplifiedbilling.purchasing.domain.Supplier;
 import com.simplifiedbilling.purchasing.domain.SupplierBalanceStatus;
 import com.simplifiedbilling.purchasing.domain.SupplierLedgerEntry;
@@ -11,14 +12,17 @@ import com.simplifiedbilling.purchasing.domain.SupplierPaymentMode;
 import com.simplifiedbilling.purchasing.dto.PurchasingRequests;
 import com.simplifiedbilling.purchasing.mapper.PurchasingMapper;
 import com.simplifiedbilling.purchasing.repository.PurchaseRepository;
+import com.simplifiedbilling.purchasing.repository.PurchaseReturnRepository;
 import com.simplifiedbilling.purchasing.repository.SupplierLedgerRepository;
 import com.simplifiedbilling.purchasing.repository.SupplierPayableBalanceRepository;
 import com.simplifiedbilling.purchasing.repository.SupplierRepository;
 import com.simplifiedbilling.purchasing.service.PurchaseNumberAllocator;
 import com.simplifiedbilling.purchasing.service.PurchasePricingEngine;
+import com.simplifiedbilling.purchasing.service.PurchaseReturnNumberAllocator;
 import com.simplifiedbilling.purchasing.service.SupplierPhoneNormalizer;
 import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
+import com.simplifiedbilling.store.service.StoreService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,17 +59,23 @@ class DefaultPurchasingServiceTest {
     @Mock private SupplierPayableBalanceRepository balanceRepository;
     @Mock private SupplierLedgerRepository ledgerRepository;
     @Mock private PurchaseRepository purchaseRepository;
+    @Mock private PurchaseReturnRepository purchaseReturnRepository;
     @Mock private PurchaseInventoryService inventoryService;
+    @Mock private PurchaseReturnInventoryService returnInventoryService;
     @Mock private PurchaseNumberAllocator numberAllocator;
+    @Mock private PurchaseReturnNumberAllocator returnNumberAllocator;
     @Mock private AuditWriter auditWriter;
+    @Mock private StoreService storeService;
     private DefaultPurchasingService service;
 
     @BeforeEach
     void setUp() {
         service = new DefaultPurchasingService(
                 supplierRepository, balanceRepository, ledgerRepository, purchaseRepository,
-                inventoryService, new PurchasePricingEngine(), numberAllocator,
+                purchaseReturnRepository, inventoryService, returnInventoryService,
+                new PurchasePricingEngine(), numberAllocator, returnNumberAllocator,
                 new SupplierPhoneNormalizer(), new PurchasingMapper(), auditWriter,
+                storeService,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -139,14 +149,20 @@ class DefaultPurchasingServiceTest {
     @Test
     void returnsSummaryAndPagesSupplierStatement() {
         when(balanceRepository.totalOutstanding()).thenReturn(new BigDecimal("250.5"));
+        when(balanceRepository.totalCredit()).thenReturn(new BigDecimal("15.25"));
         when(balanceRepository.countByOutstandingAmountGreaterThan(new BigDecimal("0.00"))).thenReturn(2L);
+        when(balanceRepository.countByCreditAmountGreaterThan(new BigDecimal("0.00"))).thenReturn(1L);
         when(supplierRepository.countByActiveTrue()).thenReturn(4L);
         var summary = service.getSummary();
         assertThat(summary.totalOutstanding()).isEqualByComparingTo("250.50");
+        assertThat(summary.totalCredit()).isEqualByComparingTo("15.25");
         assertThat(summary.suppliersWithDue()).isEqualTo(2);
+        assertThat(summary.suppliersWithCredit()).isEqualTo(1);
         assertThat(summary.activeSuppliers()).isEqualTo(4);
         when(balanceRepository.totalOutstanding()).thenReturn(null);
+        when(balanceRepository.totalCredit()).thenReturn(null);
         assertThat(service.getSummary().totalOutstanding()).isZero();
+        assertThat(service.getSummary().totalCredit()).isZero();
 
         Supplier supplier = supplier("Fresh", true, "100");
         SupplierLedgerEntry payment = SupplierLedgerEntry.payment(

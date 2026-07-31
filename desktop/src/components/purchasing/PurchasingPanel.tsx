@@ -4,6 +4,7 @@ import type {
   InventoryPage,
   ProductResponse,
   PurchaseResponse,
+  PurchaseReturnSummaryResponse,
   PurchaseSummaryResponse,
   PurchasingSummaryResponse,
   SupplierBalanceStatus,
@@ -12,6 +13,8 @@ import type {
   SupplierResponse
 } from "../../types";
 import { ErrorNotice, Field, SelectInput, SuccessNotice, TextInput } from "../FormControls";
+import { PurchaseReturnDetailModal, PurchaseReturnModal } from "./PurchaseReturnModals";
+import { SupplierAnalyticsPanel } from "./SupplierAnalyticsPanel";
 
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const emptyPage = <T,>(): InventoryPage<T> => ({ content: [], page: 0, size: 25, totalElements: 0, totalPages: 0, first: true, last: true });
@@ -32,10 +35,11 @@ function today() {
 }
 
 export function PurchasingPanel({ accessToken, canPay }: { accessToken: string; canPay: boolean }) {
-  const [tab, setTab] = useState<"purchases" | "suppliers">("purchases");
+  const [tab, setTab] = useState<"purchases" | "returns" | "suppliers" | "analytics">("purchases");
   const [summary, setSummary] = useState<PurchasingSummaryResponse | null>(null);
   const [suppliers, setSuppliers] = useState<InventoryPage<SupplierResponse>>(emptyPage());
   const [purchases, setPurchases] = useState<InventoryPage<PurchaseSummaryResponse>>(emptyPage());
+  const [purchaseReturns, setPurchaseReturns] = useState<InventoryPage<PurchaseReturnSummaryResponse>>(emptyPage());
   const [query, setQuery] = useState("");
   const [balanceStatus, setBalanceStatus] = useState<SupplierBalanceStatus>("ALL");
   const [loading, setLoading] = useState(true);
@@ -44,19 +48,23 @@ export function PurchasingPanel({ accessToken, canPay }: { accessToken: string; 
   const [statementSupplier, setStatementSupplier] = useState<SupplierResponse | null>(null);
   const [receiving, setReceiving] = useState(false);
   const [purchaseDetail, setPurchaseDetail] = useState<string | null>(null);
+  const [returnPurchaseId, setReturnPurchaseId] = useState<string | null>(null);
+  const [returnDetail, setReturnDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [nextSummary, nextSuppliers, nextPurchases] = await Promise.all([
+      const [nextSummary, nextSuppliers, nextPurchases, nextReturns] = await Promise.all([
         api.getPurchasingSummary(accessToken),
         api.searchSuppliers(accessToken, { query: tab === "suppliers" ? query : "", balanceStatus, page: 0, size: 50 }),
-        api.searchPurchases(accessToken, { query: tab === "purchases" ? query : "", page: 0, size: 50 })
+        api.searchPurchases(accessToken, { query: tab === "purchases" ? query : "", page: 0, size: 50 }),
+        api.searchPurchaseReturns(accessToken, { query: tab === "returns" ? query : "", page: 0, size: 50 })
       ]);
       setSummary(nextSummary);
       setSuppliers(nextSuppliers);
       setPurchases(nextPurchases);
+      setPurchaseReturns(nextReturns);
     } catch (caught) {
       setError(messageFrom(caught, "Purchasing data could not be loaded."));
     } finally {
@@ -72,44 +80,31 @@ export function PurchasingPanel({ accessToken, canPay }: { accessToken: string; 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {error && <ErrorNotice message={error} />}
-      <section className="grid grid-cols-3 gap-4">
+      <section className="grid grid-cols-5 gap-4">
         <Metric label="Supplier payable" value={money.format(summary?.totalOutstanding ?? 0)} tone="red" />
+        <Metric label="Supplier credit" value={money.format(summary?.totalCredit ?? 0)} tone="green" />
         <Metric label="Suppliers with due" value={String(summary?.suppliersWithDue ?? 0)} tone="amber" />
+        <Metric label="With credit" value={String(summary?.suppliersWithCredit ?? 0)} tone="indigo" />
         <Metric label="Active suppliers" value={String(summary?.activeSuppliers ?? 0)} tone="indigo" />
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className={tab === "analytics" ? "" : "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"}>
         <div className="flex items-center justify-between gap-5 border-b border-slate-200 p-5">
           <div className="flex rounded-full bg-slate-100 p-1">
             <TabButton selected={tab === "purchases"} onClick={() => { setTab("purchases"); setQuery(""); }}>Purchases</TabButton>
+            <TabButton selected={tab === "returns"} onClick={() => { setTab("returns"); setQuery(""); }}>Returns</TabButton>
             <TabButton selected={tab === "suppliers"} onClick={() => { setTab("suppliers"); setQuery(""); }}>Suppliers</TabButton>
+            <TabButton selected={tab === "analytics"} onClick={() => { setTab("analytics"); setQuery(""); }}>Analytics</TabButton>
           </div>
-          <div className="flex flex-1 justify-end gap-3">
-            <TextInput
-              className="mt-0 max-w-sm"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={tab === "purchases" ? "Search purchase, supplier invoice…" : "Search supplier, phone or GSTIN…"}
-            />
-            {tab === "suppliers" && (
-              <SelectInput className="mt-0 max-w-[170px]" value={balanceStatus} onChange={(event) => setBalanceStatus(event.target.value as SupplierBalanceStatus)}>
-                <option value="ALL">All balances</option><option value="DUE">With due</option><option value="CLEAR">Clear</option>
-              </SelectInput>
-            )}
+          {tab !== "analytics" && <div className="flex flex-1 justify-end gap-3">
+            <TextInput className="mt-0 max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab === "purchases" ? "Search purchase or supplier invoice…" : tab === "returns" ? "Search return, purchase or supplier…" : "Search supplier, phone or GSTIN…"} />
+            {tab === "suppliers" && <SelectInput className="mt-0 max-w-[170px]" value={balanceStatus} onChange={(event) => setBalanceStatus(event.target.value as SupplierBalanceStatus)}><option value="ALL">All balances</option><option value="DUE">With due</option><option value="CREDIT">With credit</option><option value="CLEAR">Clear</option></SelectInput>}
             <button type="button" onClick={() => setSupplierEditor("new")} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-bold">New supplier</button>
             <button type="button" onClick={() => setReceiving(true)} className="rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-bold text-white">Receive purchase</button>
-          </div>
+          </div>}
         </div>
 
-        {loading ? <p className="p-8 text-sm text-slate-500">Loading purchasing workspace…</p> : tab === "purchases" ? (
-          <PurchaseTable page={purchases} onOpen={(purchase) => setPurchaseDetail(purchase.id)} />
-        ) : (
-          <SupplierTable
-            page={suppliers}
-            onStatement={setStatementSupplier}
-            onEdit={setSupplierEditor}
-          />
-        )}
+        {tab === "analytics" ? <div className="pt-5"><SupplierAnalyticsPanel accessToken={accessToken} /></div> : loading ? <p className="p-8 text-sm text-slate-500">Loading purchasing workspace…</p> : tab === "purchases" ? <PurchaseTable page={purchases} onOpen={(purchase) => setPurchaseDetail(purchase.id)} /> : tab === "returns" ? <PurchaseReturnTable page={purchaseReturns} onOpen={(purchaseReturn) => setReturnDetail(purchaseReturn.id)} /> : <SupplierTable page={suppliers} onStatement={setStatementSupplier} onEdit={setSupplierEditor} />}
       </section>
 
       {supplierEditor && (
@@ -136,13 +131,15 @@ export function PurchasingPanel({ accessToken, canPay }: { accessToken: string; 
           onReceived={async () => { setReceiving(false); await load(); }}
         />
       )}
-      {purchaseDetail && <PurchaseDetailModal accessToken={accessToken} purchaseId={purchaseDetail} onClose={() => setPurchaseDetail(null)} />}
+      {purchaseDetail && <PurchaseDetailModal accessToken={accessToken} purchaseId={purchaseDetail} onClose={() => setPurchaseDetail(null)} onReturn={(id) => { setPurchaseDetail(null); setReturnPurchaseId(id); }} />}
+      {returnPurchaseId && <PurchaseReturnModal accessToken={accessToken} purchaseId={returnPurchaseId} onClose={() => setReturnPurchaseId(null)} onReturned={async (id) => { setReturnPurchaseId(null); setReturnDetail(id); await load(); }} />}
+      {returnDetail && <PurchaseReturnDetailModal accessToken={accessToken} purchaseReturnId={returnDetail} onClose={() => setReturnDetail(null)} />}
     </div>
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone: "red" | "amber" | "indigo" }) {
-  const styles = { red: "border-red-200 bg-red-50 text-red-800", amber: "border-amber-200 bg-amber-50 text-amber-900", indigo: "border-indigo-200 bg-indigo-50 text-indigo-900" };
+function Metric({ label, value, tone }: { label: string; value: string; tone: "red" | "amber" | "indigo" | "green" }) {
+  const styles = { red: "border-red-200 bg-red-50 text-red-800", amber: "border-amber-200 bg-amber-50 text-amber-900", indigo: "border-indigo-200 bg-indigo-50 text-indigo-900", green: "border-emerald-200 bg-emerald-50 text-emerald-800" };
   return <article className={`rounded-2xl border p-5 shadow-sm ${styles[tone]}`}><p className="text-xs font-bold uppercase tracking-wider opacity-70">{label}</p><p className="mt-3 text-2xl font-black">{value}</p></article>;
 }
 
@@ -155,9 +152,14 @@ function PurchaseTable({ page, onOpen }: { page: InventoryPage<PurchaseSummaryRe
   return <div><div className="grid grid-cols-[145px_1fr_150px_130px_145px_130px] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Purchase</span><span>Supplier</span><span>Invoice date</span><span className="text-right">Total</span><span className="text-right">Outstanding</span><span /></div>{page.content.map((purchase) => <button key={purchase.id} type="button" onClick={() => onOpen(purchase)} className="grid w-full grid-cols-[145px_1fr_150px_130px_145px_130px] items-center border-t border-slate-100 px-5 py-4 text-left text-sm hover:bg-slate-50"><span className="font-bold text-indigo-700">{purchase.purchaseNumber}</span><span><strong className="block truncate">{purchase.supplierName}</strong><small className="text-slate-500">{purchase.supplierInvoiceNumber ?? "No supplier invoice"}</small></span><span className="text-slate-600">{purchase.invoiceDate}</span><span className="text-right font-bold">{money.format(purchase.totalAmount)}</span><span className={`text-right font-bold ${purchase.outstandingAdded > 0 ? "text-red-700" : "text-emerald-700"}`}>{money.format(purchase.outstandingAdded)}</span><span className="text-right text-xs font-bold text-indigo-700">View details</span></button>)}</div>;
 }
 
+function PurchaseReturnTable({ page, onOpen }: { page: InventoryPage<PurchaseReturnSummaryResponse>; onOpen: (purchaseReturn: PurchaseReturnSummaryResponse) => void }) {
+  if (page.content.length === 0) return <EmptyState title="No purchase returns found" copy="Open a purchase and select Return items to create a stock and supplier-account reversal." />;
+  return <div><div className="grid grid-cols-[145px_145px_1fr_140px_150px_130px] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Return</span><span>Purchase</span><span>Supplier</span><span>Return date</span><span className="text-right">Return total</span><span /></div>{page.content.map((purchaseReturn) => <button key={purchaseReturn.id} type="button" onClick={() => onOpen(purchaseReturn)} className="grid w-full grid-cols-[145px_145px_1fr_140px_150px_130px] items-center border-t border-slate-100 px-5 py-4 text-left text-sm hover:bg-slate-50"><span className="font-bold text-amber-700">{purchaseReturn.returnNumber}</span><span className="font-semibold text-indigo-700">{purchaseReturn.purchaseNumber}</span><span><strong className="block truncate">{purchaseReturn.supplierName}</strong><small className="text-slate-500">{purchaseReturn.reason.replaceAll("_", " ")}</small></span><span>{purchaseReturn.returnDate}</span><span className="text-right font-bold">{money.format(purchaseReturn.totalAmount)}</span><span className="text-right text-xs font-bold text-indigo-700">View details</span></button>)}</div>;
+}
+
 function SupplierTable({ page, onStatement, onEdit }: { page: InventoryPage<SupplierResponse>; onStatement: (supplier: SupplierResponse) => void; onEdit: (supplier: SupplierResponse) => void }) {
   if (page.content.length === 0) return <EmptyState title="No suppliers found" copy="Create a supplier before receiving your first purchase." />;
-  return <div><div className="grid grid-cols-[1fr_150px_170px_150px_190px] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Supplier</span><span>Phone</span><span>GSTIN</span><span className="text-right">Outstanding</span><span /></div>{page.content.map((supplier) => <div key={supplier.id} className="grid grid-cols-[1fr_150px_170px_150px_190px] items-center border-t border-slate-100 px-5 py-4 text-sm"><span><strong className="block">{supplier.name}</strong><small className={supplier.active ? "text-emerald-700" : "text-red-700"}>{supplier.active ? "Active" : "Inactive"}</small></span><span>{supplier.phone}</span><span className="text-xs text-slate-600">{supplier.gstin ?? "—"}</span><span className={`text-right font-bold ${supplier.outstandingAmount > 0 ? "text-red-700" : "text-emerald-700"}`}>{money.format(supplier.outstandingAmount)}</span><span className="flex justify-end gap-2"><button type="button" onClick={() => onEdit(supplier)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">Edit</button><button type="button" onClick={() => onStatement(supplier)} className="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800">Statement</button></span></div>)}</div>;
+  return <div><div className="grid grid-cols-[1fr_140px_145px_130px_130px_180px] bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Supplier</span><span>Phone</span><span>GSTIN</span><span className="text-right">Payable</span><span className="text-right">Credit</span><span /></div>{page.content.map((supplier) => <div key={supplier.id} className="grid grid-cols-[1fr_140px_145px_130px_130px_180px] items-center border-t border-slate-100 px-5 py-4 text-sm"><span><strong className="block">{supplier.name}</strong><small className={supplier.active ? "text-emerald-700" : "text-red-700"}>{supplier.active ? "Active" : "Inactive"}</small></span><span>{supplier.phone}</span><span className="text-xs text-slate-600">{supplier.gstin ?? "—"}</span><span className={`text-right font-bold ${supplier.outstandingAmount > 0 ? "text-red-700" : "text-slate-500"}`}>{money.format(supplier.outstandingAmount)}</span><span className={`text-right font-bold ${supplier.creditAmount > 0 ? "text-indigo-700" : "text-slate-500"}`}>{money.format(supplier.creditAmount)}</span><span className="flex justify-end gap-2"><button type="button" onClick={() => onEdit(supplier)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">Edit</button><button type="button" onClick={() => onStatement(supplier)} className="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800">Statement</button></span></div>)}</div>;
 }
 
 function EmptyState({ title, copy }: { title: string; copy: string }) {
@@ -184,8 +186,9 @@ function SupplierStatementModal({ accessToken, supplier: initial, canPay, onClos
     <Modal title={`${supplier.name} · Supplier statement`} onClose={onClose} width="max-w-5xl">
       <div className="space-y-5">
         {error && <ErrorNotice message={error} />}
-        <div className="grid grid-cols-3 gap-4">
-          <Metric label="Outstanding" value={money.format(supplier.outstandingAmount)} tone={supplier.outstandingAmount > 0 ? "red" : "indigo"} />
+        <div className="grid grid-cols-4 gap-4">
+          <Metric label="Payable" value={money.format(supplier.outstandingAmount)} tone={supplier.outstandingAmount > 0 ? "red" : "indigo"} />
+          <Metric label="Supplier credit" value={money.format(supplier.creditAmount)} tone={supplier.creditAmount > 0 ? "green" : "indigo"} />
           <Metric label="Phone" value={supplier.phone} tone="indigo" />
           <article className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
             <div><p className="text-xs font-bold uppercase text-indigo-700">Supplier payment</p><p className="mt-2 text-xs text-indigo-900">Record full or partial payment</p></div>
@@ -196,16 +199,17 @@ function SupplierStatementModal({ accessToken, supplier: initial, canPay, onClos
         </div>
         {paying && <SupplierPaymentForm accessToken={accessToken} supplier={supplier} onCancel={() => setPaying(false)} onPaid={async () => { setPaying(false); await load(); await onChanged(); }} />}
         <div className="overflow-hidden rounded-xl border border-slate-200">
-          <div className="grid grid-cols-[170px_160px_140px_150px_1fr] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Date</span><span>Type</span><span className="text-right">Amount</span><span className="text-right">Balance</span><span>Reference</span></div>
+          <div className="grid grid-cols-[155px_145px_125px_125px_125px_1fr] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"><span>Date</span><span>Type</span><span className="text-right">Amount</span><span className="text-right">Payable</span><span className="text-right">Credit</span><span>Reference</span></div>
           {entries.length === 0
             ? <p className="p-7 text-sm text-slate-500">No payable activity yet.</p>
             : entries.map((entry) => (
-              <div key={entry.id} className="grid grid-cols-[170px_160px_140px_150px_1fr] border-t border-slate-100 px-4 py-3 text-sm">
+              <div key={entry.id} className="grid grid-cols-[155px_145px_125px_125px_125px_1fr] border-t border-slate-100 px-4 py-3 text-sm">
                 <span className="text-xs text-slate-600">{new Date(entry.occurredAt).toLocaleString("en-IN")}</span>
-                <span className={`font-bold ${entry.entryType === "PURCHASE_DUE" ? "text-red-700" : "text-emerald-700"}`}>{entry.entryType === "PURCHASE_DUE" ? "Purchase due" : "Payment"}</span>
+                <span className={`font-bold ${entry.entryType === "PURCHASE_DUE" ? "text-red-700" : entry.entryType === "PURCHASE_RETURN" ? "text-amber-700" : "text-emerald-700"}`}>{entry.entryType === "PURCHASE_DUE" ? "Purchase due" : entry.entryType === "PURCHASE_RETURN" ? "Purchase return" : "Payment"}</span>
                 <span className="text-right font-bold">{money.format(entry.amount)}</span>
                 <span className="text-right font-bold">{money.format(entry.balanceAfter)}</span>
-                <span className="truncate text-xs text-slate-500">{entry.purchaseNumber ?? ([entry.paymentMode, entry.paymentReference, entry.notes].filter(Boolean).join(" · ") || "—")}</span>
+                <span className="text-right font-bold text-indigo-700">{money.format(entry.creditBalanceAfter)}</span>
+                <span className="truncate text-xs text-slate-500">{entry.purchaseNumber ?? entry.purchaseReturnNumber ?? ([entry.paymentMode, entry.paymentReference, entry.notes].filter(Boolean).join(" · ") || "—")}</span>
               </div>
             ))}
         </div>
@@ -227,16 +231,32 @@ function ReceivePurchaseModal({ accessToken, onClose, onReceived }: { accessToke
   useEffect(() => { api.searchSuppliers(accessToken, { active: true, size: 100 }).then((page) => { setSuppliers(page.content); if (page.content[0]) setSupplierId(page.content[0].id); }).catch((caught) => setError(messageFrom(caught, "Suppliers could not be loaded."))); }, [accessToken]);
   useEffect(() => { if (!productQuery.trim()) { setResults([]); return; } const timer = window.setTimeout(() => api.searchProducts(accessToken, { query: productQuery, active: true, size: 8 }).then((page) => setResults(page.content)).catch(() => setResults([])), 220); return () => window.clearTimeout(timer); }, [accessToken, productQuery]);
   const totals = useMemo(() => items.reduce((sum, item) => { const gross = item.quantity * item.unitCost; const taxable = includeTax ? gross * 100 / (100 + item.product.gstRate) : gross; const tax = includeTax ? gross - taxable : taxable * item.product.gstRate / 100; return { subtotal: sum.subtotal + taxable, tax: sum.tax + tax, total: sum.total + taxable + tax }; }, { subtotal: 0, tax: 0, total: 0 }), [includeTax, items]);
+  const supplierCredit = suppliers.find((supplier) => supplier.id === supplierId)?.creditAmount ?? 0;
+  const unpaidCharge = Math.max(0, totals.total - amountPaid);
+  const projectedCreditUsed = Math.min(supplierCredit, unpaidCharge);
+  const projectedPayable = Math.max(0, unpaidCharge - supplierCredit);
   function addProduct(product: ProductResponse) { setItems((current) => current.some((item) => item.product.id === product.id) ? current : [...current, { product, quantity: 1, unitCost: product.purchaseCost }]); setProductQuery(""); setResults([]); }
   function updateItem(id: string, patch: Partial<Pick<PurchaseDraftItem, "quantity" | "unitCost">>) { setItems((current) => current.map((item) => item.product.id === id ? { ...item, ...patch } : item)); }
   async function submit(event: FormEvent) { event.preventDefault(); if (!supplierId || items.length === 0) { setError("Select a supplier and add at least one product."); return; } setSaving(true); setError(""); setSuccess(""); try { const response = await api.receivePurchase(accessToken, key.current, { supplierId, supplierInvoiceNumber: invoiceNumber, invoiceDate, pricesIncludeTax: includeTax, items: items.map((item) => ({ productId: item.product.id, quantity: item.quantity, unitCost: item.unitCost })), amountPaid, paymentMode: amountPaid > 0 ? paymentMode : null, paymentReference: reference, notes }); setSuccess(`${response.purchaseNumber} received successfully.`); await onReceived(); } catch (caught) { setError(messageFrom(caught, "Purchase could not be received.")); } finally { setSaving(false); } }
-  return <Modal title="Receive supplier purchase" onClose={onClose} width="max-w-6xl"><form onSubmit={submit} className="space-y-5">{error && <ErrorNotice message={error} />}{success && <SuccessNotice message={success} />}<section className="grid grid-cols-4 gap-4 rounded-2xl bg-slate-50 p-5"><Field label="Supplier"><SelectInput required value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</SelectInput></Field><Field label="Supplier invoice"><TextInput maxLength={80} value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} /></Field><Field label="Invoice date"><TextInput required type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></Field><label className="flex items-center gap-3 pt-6 text-sm font-semibold"><input type="checkbox" checked={includeTax} onChange={(e) => setIncludeTax(e.target.checked)} /> Costs include GST</label></section><section className="relative"><Field label="Add products"><TextInput value={productQuery} onChange={(e) => setProductQuery(e.target.value)} placeholder="Search name, SKU or barcode" /></Field>{results.length > 0 && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">{results.map((product) => <button key={product.id} type="button" onClick={() => addProduct(product)} className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-50"><span><strong className="block text-sm">{product.name}</strong><small className="text-slate-500">{product.sku ?? product.barcode} · Stock {product.stockQuantity}</small></span><span className="text-sm font-bold">Last {money.format(product.purchaseCost)}</span></button>)}</div>}</section><section className="overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[1fr_130px_150px_110px_150px_50px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500"><span>Product</span><span>Quantity</span><span>Unit cost</span><span>GST</span><span className="text-right">Line total</span><span /></div>{items.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">Search and add products to this purchase.</p> : items.map((item) => { const base = item.quantity * item.unitCost; const line = includeTax ? base : base * (1 + item.product.gstRate / 100); return <div key={item.product.id} className="grid grid-cols-[1fr_130px_150px_110px_150px_50px] items-center border-t border-slate-100 px-4 py-3"><span><strong className="block text-sm">{item.product.name}</strong><small className="text-slate-500">{item.product.unit}</small></span><TextInput className="mt-0" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(e) => updateItem(item.product.id, { quantity: Number(e.target.value) })} /><TextInput className="mt-0" type="number" min="0.01" step="0.01" value={item.unitCost} onChange={(e) => updateItem(item.product.id, { unitCost: Number(e.target.value) })} /><span className="text-center text-sm">{item.product.gstRate}%</span><span className="text-right font-bold">{money.format(line)}</span><button type="button" onClick={() => setItems((current) => current.filter((lineItem) => lineItem.product.id !== item.product.id))} className="text-red-700">×</button></div>; })}</section><section className="grid grid-cols-[1fr_360px] gap-6"><div className="grid grid-cols-2 gap-4"><Field label="Amount paid now"><TextInput type="number" min="0" max={totals.total} step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></Field><Field label="Payment mode"><SelectInput disabled={amountPaid <= 0} value={paymentMode} onChange={(e) => setPaymentMode(e.target.value as SupplierPaymentMode)}>{paymentModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectInput></Field><Field label="Payment reference"><TextInput disabled={amountPaid <= 0} value={reference} onChange={(e) => setReference(e.target.value)} /></Field><Field label="Notes"><TextInput value={notes} onChange={(e) => setNotes(e.target.value)} /></Field></div><div className="rounded-2xl bg-slate-900 p-5 text-white"><TotalRow label="Taxable" value={totals.subtotal} /><TotalRow label="GST" value={totals.tax} /><TotalRow label="Purchase total" value={totals.total} strong /><TotalRow label="Added to payable" value={Math.max(0, totals.total - amountPaid)} danger /></div></section><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold">Cancel</button><button disabled={saving || items.length === 0} className="rounded-xl bg-indigo-700 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Receiving…" : "Receive & update stock"}</button></div></form></Modal>;
+  return <Modal title="Receive supplier purchase" onClose={onClose} width="max-w-6xl"><form onSubmit={submit} className="space-y-5">{error && <ErrorNotice message={error} />}{success && <SuccessNotice message={success} />}<section className="grid grid-cols-4 gap-4 rounded-2xl bg-slate-50 p-5"><Field label="Supplier"><SelectInput required value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</SelectInput></Field><Field label="Supplier invoice"><TextInput maxLength={80} value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} /></Field><Field label="Invoice date"><TextInput required type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></Field><label className="flex items-center gap-3 pt-6 text-sm font-semibold"><input type="checkbox" checked={includeTax} onChange={(e) => setIncludeTax(e.target.checked)} /> Costs include GST</label></section><section className="relative"><Field label="Add products"><TextInput value={productQuery} onChange={(e) => setProductQuery(e.target.value)} placeholder="Search name, SKU or barcode" /></Field>{results.length > 0 && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">{results.map((product) => <button key={product.id} type="button" onClick={() => addProduct(product)} className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-50"><span><strong className="block text-sm">{product.name}</strong><small className="text-slate-500">{product.sku ?? product.barcode} · Stock {product.stockQuantity}</small></span><span className="text-sm font-bold">Last {money.format(product.purchaseCost)}</span></button>)}</div>}</section><section className="overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[1fr_130px_150px_110px_150px_50px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500"><span>Product</span><span>Quantity</span><span>Unit cost</span><span>GST</span><span className="text-right">Line total</span><span /></div>{items.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">Search and add products to this purchase.</p> : items.map((item) => { const base = item.quantity * item.unitCost; const line = includeTax ? base : base * (1 + item.product.gstRate / 100); return <div key={item.product.id} className="grid grid-cols-[1fr_130px_150px_110px_150px_50px] items-center border-t border-slate-100 px-4 py-3"><span><strong className="block text-sm">{item.product.name}</strong><small className="text-slate-500">{item.product.unit}</small></span><TextInput className="mt-0" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(e) => updateItem(item.product.id, { quantity: Number(e.target.value) })} /><TextInput className="mt-0" type="number" min="0.01" step="0.01" value={item.unitCost} onChange={(e) => updateItem(item.product.id, { unitCost: Number(e.target.value) })} /><span className="text-center text-sm">{item.product.gstRate}%</span><span className="text-right font-bold">{money.format(line)}</span><button type="button" onClick={() => setItems((current) => current.filter((lineItem) => lineItem.product.id !== item.product.id))} className="text-red-700">×</button></div>; })}</section><section className="grid grid-cols-[1fr_360px] gap-6"><div className="grid grid-cols-2 gap-4"><Field label="Amount paid now"><TextInput type="number" min="0" max={totals.total} step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></Field><Field label="Payment mode"><SelectInput disabled={amountPaid <= 0} value={paymentMode} onChange={(e) => setPaymentMode(e.target.value as SupplierPaymentMode)}>{paymentModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectInput></Field><Field label="Payment reference"><TextInput disabled={amountPaid <= 0} value={reference} onChange={(e) => setReference(e.target.value)} /></Field><Field label="Notes"><TextInput value={notes} onChange={(e) => setNotes(e.target.value)} /></Field></div><div className="rounded-2xl bg-slate-900 p-5 text-white"><TotalRow label="Taxable" value={totals.subtotal} /><TotalRow label="GST" value={totals.tax} /><TotalRow label="Purchase total" value={totals.total} strong />{projectedCreditUsed > 0 && <TotalRow label="Supplier credit used" value={projectedCreditUsed} />}<TotalRow label="Added to payable" value={projectedPayable} danger /></div></section><div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold">Cancel</button><button disabled={saving || items.length === 0} className="rounded-xl bg-indigo-700 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Receiving…" : "Receive & update stock"}</button></div></form></Modal>;
 }
 
 function TotalRow({ label, value, strong, danger }: { label: string; value: number; strong?: boolean; danger?: boolean }) { return <div className={`flex justify-between py-2 ${strong ? "mt-2 border-t border-slate-700 text-lg font-black" : "text-sm"}`}><span className="opacity-70">{label}</span><span className={danger ? "font-bold text-red-200" : "font-bold"}>{money.format(value)}</span></div>; }
 
-function PurchaseDetailModal({ accessToken, purchaseId, onClose }: { accessToken: string; purchaseId: string; onClose: () => void }) {
-  const [purchase, setPurchase] = useState<PurchaseResponse | null>(null); const [error, setError] = useState("");
+function PurchaseDetailModal({ accessToken, purchaseId, onClose, onReturn }: { accessToken: string; purchaseId: string; onClose: () => void; onReturn: (purchaseId: string) => void }) {
+  const [purchase, setPurchase] = useState<PurchaseResponse | null>(null);
+  const [error, setError] = useState("");
   useEffect(() => { api.getPurchase(accessToken, purchaseId).then(setPurchase).catch((caught) => setError(messageFrom(caught, "Purchase could not be loaded."))); }, [accessToken, purchaseId]);
-  return <Modal title={purchase?.purchaseNumber ?? "Purchase details"} onClose={onClose} width="max-w-5xl">{error && <ErrorNotice message={error} />}{!purchase ? <p className="text-sm text-slate-500">Loading purchase…</p> : <div className="space-y-5"><section className="grid grid-cols-4 gap-4"><Metric label="Total" value={money.format(purchase.totalAmount)} tone="indigo" /><Metric label="Paid at receipt" value={money.format(purchase.amountPaid)} tone="indigo" /><Metric label="Payable added" value={money.format(purchase.outstandingAdded)} tone={purchase.outstandingAdded > 0 ? "red" : "indigo"} /><Metric label="GST" value={money.format(purchase.taxAmount)} tone="amber" /></section><div className="rounded-xl bg-slate-50 p-4 text-sm"><strong>{purchase.supplierName}</strong><span className="mx-2">·</span>{purchase.invoiceDate}<span className="mx-2">·</span>{purchase.supplierInvoiceNumber ?? "No supplier invoice"}</div><div className="overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[1fr_110px_130px_100px_140px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500"><span>Product</span><span className="text-right">Qty</span><span className="text-right">Cost</span><span className="text-right">GST</span><span className="text-right">Total</span></div>{purchase.items.map((item) => <div key={item.lineNumber} className="grid grid-cols-[1fr_110px_130px_100px_140px] border-t border-slate-100 px-4 py-3 text-sm"><span className="font-semibold">{item.productName}</span><span className="text-right">{item.quantity}</span><span className="text-right">{money.format(item.unitCost)}</span><span className="text-right">{item.gstRate}%</span><span className="text-right font-bold">{money.format(item.lineTotal)}</span></div>)}</div>{purchase.notes && <p className="text-sm text-slate-600">Notes: {purchase.notes}</p>}</div>}</Modal>;
+  const canReturn = purchase?.items.some((item) => item.returnableQuantity > 0) ?? false;
+  return (
+    <Modal title={purchase?.purchaseNumber ?? "Purchase details"} onClose={onClose} width="max-w-5xl">
+      {error && <ErrorNotice message={error} />}
+      {!purchase ? <p className="text-sm text-slate-500">Loading purchase…</p> : <div className="space-y-5">
+        <section className="grid grid-cols-4 gap-4"><Metric label="Total" value={money.format(purchase.totalAmount)} tone="indigo" /><Metric label="Paid at receipt" value={money.format(purchase.amountPaid)} tone="indigo" /><Metric label="Payable added" value={money.format(purchase.outstandingAdded)} tone={purchase.outstandingAdded > 0 ? "red" : "indigo"} /><Metric label="GST" value={money.format(purchase.taxAmount)} tone="amber" /></section>
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4 text-sm"><span><strong>{purchase.supplierName}</strong><span className="mx-2">·</span>{purchase.invoiceDate}<span className="mx-2">·</span>{purchase.supplierInvoiceNumber ?? "No supplier invoice"}</span><button type="button" disabled={!canReturn} onClick={() => onReturn(purchase.id)} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{canReturn ? "Return items" : "Fully returned"}</button></div>
+        <div className="overflow-hidden rounded-xl border border-slate-200"><div className="grid grid-cols-[1fr_100px_100px_100px_120px_90px_130px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500"><span>Product</span><span className="text-right">Bought</span><span className="text-right">Returned</span><span className="text-right">Remaining</span><span className="text-right">Cost</span><span className="text-right">GST</span><span className="text-right">Total</span></div>{purchase.items.map((item) => <div key={item.purchaseItemId} className="grid grid-cols-[1fr_100px_100px_100px_120px_90px_130px] border-t border-slate-100 px-4 py-3 text-sm"><span className="font-semibold">{item.productName}</span><span className="text-right">{item.quantity}</span><span className="text-right text-amber-700">{item.returnedQuantity}</span><span className="text-right font-bold">{item.returnableQuantity}</span><span className="text-right">{money.format(item.unitCost)}</span><span className="text-right">{item.gstRate}%</span><span className="text-right font-bold">{money.format(item.lineTotal)}</span></div>)}</div>
+        {purchase.notes && <p className="text-sm text-slate-600">Notes: {purchase.notes}</p>}
+      </div>}
+    </Modal>
+  );
 }

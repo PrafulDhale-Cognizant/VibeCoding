@@ -2,6 +2,7 @@ package com.simplifiedbilling.purchasing.domain;
 
 import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.purchasing.service.PurchasePricingLine;
+import com.simplifiedbilling.purchasing.service.PurchaseReturnSelection;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,8 +19,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
-@Table(name = "purchase_items")
-public class PurchaseItem {
+@Table(name = "purchase_return_items")
+public class PurchaseReturnItem {
 
     @Id
     @JdbcTypeCode(SqlTypes.CHAR)
@@ -27,8 +28,12 @@ public class PurchaseItem {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "purchase_id", nullable = false, updatable = false)
-    private Purchase purchase;
+    @JoinColumn(name = "purchase_return_id", nullable = false, updatable = false)
+    private PurchaseReturn purchaseReturn;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "purchase_item_id", nullable = false, updatable = false)
+    private PurchaseItem purchaseItem;
 
     @Column(name = "line_number", nullable = false, updatable = false)
     private int lineNumber;
@@ -48,9 +53,6 @@ public class PurchaseItem {
     @Column(precision = 19, scale = 3, nullable = false, updatable = false)
     private BigDecimal quantity;
 
-    @Column(name = "returned_quantity", precision = 19, scale = 3, nullable = false)
-    private BigDecimal returnedQuantity;
-
     @Column(name = "unit_cost", precision = 19, scale = 2, nullable = false, updatable = false)
     private BigDecimal unitCost;
 
@@ -66,49 +68,41 @@ public class PurchaseItem {
     @Column(name = "line_total", precision = 19, scale = 2, nullable = false, updatable = false)
     private BigDecimal lineTotal;
 
-    protected PurchaseItem() {
+    protected PurchaseReturnItem() {
     }
 
-    static PurchaseItem create(Purchase purchase, PurchasePricingLine line) {
-        PurchaseItem item = new PurchaseItem();
+    static PurchaseReturnItem create(
+            PurchaseReturn purchaseReturn,
+            PurchaseReturnSelection selection,
+            PurchasePricingLine pricing) {
+        PurchaseItem source = selection.purchaseItem();
+        PurchaseReturnItem item = new PurchaseReturnItem();
         item.id = UUID.randomUUID().toString();
-        item.purchase = purchase;
-        item.lineNumber = line.lineNumber();
-        item.productId = line.product().productId();
-        item.productName = line.product().name();
-        item.unit = line.product().unit();
-        item.quantity = line.product().quantity();
-        item.returnedQuantity = BigDecimal.ZERO.setScale(3);
-        item.unitCost = line.product().unitCost();
-        item.gstRate = line.product().gstRate();
-        item.taxableAmount = line.taxableAmount();
-        item.taxAmount = line.taxAmount();
-        item.lineTotal = line.lineTotal();
+        item.purchaseReturn = purchaseReturn;
+        item.purchaseItem = source;
+        item.lineNumber = pricing.lineNumber();
+        item.productId = source.getProductId();
+        item.productName = source.getProductName();
+        item.unit = source.getUnit();
+        item.quantity = selection.quantity();
+        item.unitCost = source.getUnitCost();
+        item.gstRate = source.getGstRate();
+        item.taxableAmount = pricing.taxableAmount();
+        item.taxAmount = pricing.taxAmount();
+        item.lineTotal = pricing.lineTotal();
         return item;
     }
 
     public String getId() { return id; }
+    public PurchaseItem getPurchaseItem() { return purchaseItem; }
     public int getLineNumber() { return lineNumber; }
     public String getProductId() { return productId; }
     public String getProductName() { return productName; }
     public ProductUnit getUnit() { return unit; }
     public BigDecimal getQuantity() { return quantity; }
-    public BigDecimal getReturnedQuantity() { return returnedQuantity; }
-    public BigDecimal getReturnableQuantity() { return quantity.subtract(returnedQuantity); }
     public BigDecimal getUnitCost() { return unitCost; }
     public BigDecimal getGstRate() { return gstRate; }
     public BigDecimal getTaxableAmount() { return taxableAmount; }
     public BigDecimal getTaxAmount() { return taxAmount; }
     public BigDecimal getLineTotal() { return lineTotal; }
-
-    public void registerReturn(BigDecimal returnQuantity) {
-        if (returnQuantity == null || returnQuantity.signum() <= 0) {
-            throw new IllegalArgumentException("Return quantity must be positive.");
-        }
-        BigDecimal next = returnedQuantity.add(returnQuantity);
-        if (next.compareTo(quantity) > 0) {
-            throw new IllegalArgumentException("Return quantity exceeds the purchased quantity.");
-        }
-        returnedQuantity = next;
-    }
 }

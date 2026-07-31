@@ -89,6 +89,7 @@ export type StockReasonCode =
   | StockAdjustmentReasonCode
   | "OPENING_STOCK"
   | "PURCHASE"
+  | "PURCHASE_RETURN"
   | "SALE"
   | "SALE_RETURN";
 
@@ -394,8 +395,15 @@ export interface SalesReportResponse {
   generatedAt: string;
 }
 
-export type SupplierBalanceStatus = "ALL" | "DUE" | "CLEAR";
+export type SupplierBalanceStatus = "ALL" | "DUE" | "CREDIT" | "CLEAR";
 export type SupplierPaymentMode = "CASH" | "UPI" | "CARD" | "BANK_TRANSFER";
+export type PurchaseReturnReason =
+  | "DAMAGED"
+  | "EXPIRED"
+  | "WRONG_ITEM"
+  | "QUALITY_ISSUE"
+  | "EXCESS_STOCK"
+  | "OTHER";
 
 export interface SupplierResponse {
   id: string;
@@ -406,6 +414,7 @@ export interface SupplierResponse {
   notes: string | null;
   active: boolean;
   outstandingAmount: number;
+  creditAmount: number;
   version: number;
   balanceVersion: number;
   createdAt: string;
@@ -414,18 +423,23 @@ export interface SupplierResponse {
 
 export interface PurchasingSummaryResponse {
   totalOutstanding: number;
+  totalCredit: number;
   suppliersWithDue: number;
+  suppliersWithCredit: number;
   activeSuppliers: number;
 }
 
 export interface SupplierLedgerResponse {
   id: string;
   supplierId: string;
-  entryType: "PURCHASE_DUE" | "PAYMENT";
+  entryType: "PURCHASE_DUE" | "PURCHASE_RETURN" | "PAYMENT";
   amount: number;
   balanceAfter: number;
+  creditBalanceAfter: number;
   purchaseId: string | null;
   purchaseNumber: string | null;
+  purchaseReturnId: string | null;
+  purchaseReturnNumber: string | null;
   paymentMode: SupplierPaymentMode | null;
   paymentReference: string | null;
   notes: string | null;
@@ -448,11 +462,14 @@ export interface PurchaseSummaryResponse {
 }
 
 export interface PurchaseLineResponse {
+  purchaseItemId: string;
   lineNumber: number;
   productId: string;
   productName: string;
   unit: ProductUnit;
   quantity: number;
+  returnedQuantity: number;
+  returnableQuantity: number;
   unitCost: number;
   gstRate: number;
   taxableAmount: number;
@@ -477,7 +494,73 @@ export interface SupplierPaymentResponse {
   supplierId: string;
   amount: number;
   balanceAfter: number;
+  creditBalanceAfter: number;
   paymentMode: SupplierPaymentMode;
   occurredAt: string;
   idempotentReplay: boolean;
+}
+
+export interface PurchaseReturnSummaryResponse {
+  id: string;
+  returnNumber: string;
+  purchaseId: string;
+  purchaseNumber: string;
+  supplierId: string;
+  supplierName: string;
+  returnDate: string;
+  reason: PurchaseReturnReason;
+  totalAmount: number;
+  payableReduction: number;
+  creditAdded: number;
+  returnedAt: string;
+}
+
+export interface PurchaseReturnLineResponse {
+  lineNumber: number;
+  purchaseItemId: string;
+  productId: string;
+  productName: string;
+  unit: ProductUnit;
+  quantity: number;
+  unitCost: number;
+  gstRate: number;
+  taxableAmount: number;
+  taxAmount: number;
+  lineTotal: number;
+}
+
+export interface PurchaseReturnResponse extends PurchaseReturnSummaryResponse {
+  subtotalAmount: number;
+  taxAmount: number;
+  supplierPayableAfter: number;
+  supplierCreditAfter: number;
+  notes: string | null;
+  actorUserId: string;
+  items: PurchaseReturnLineResponse[];
+  idempotentReplay: boolean;
+}
+
+export interface SupplierAnalyticsRowResponse {
+  supplierId: string;
+  supplierName: string;
+  purchaseTotal: number;
+  returnTotal: number;
+  netPurchaseTotal: number;
+  paymentTotal: number;
+  outstandingAmount: number;
+  creditAmount: number;
+}
+
+export interface SupplierAnalyticsResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  purchaseTotal: number;
+  returnTotal: number;
+  netPurchaseTotal: number;
+  paymentTotal: number;
+  totalOutstanding: number;
+  totalCredit: number;
+  suppliers: SupplierAnalyticsRowResponse[];
+  generatedAt: string;
 }

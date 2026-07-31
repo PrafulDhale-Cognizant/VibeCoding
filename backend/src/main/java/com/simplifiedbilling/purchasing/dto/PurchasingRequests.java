@@ -1,6 +1,7 @@
 package com.simplifiedbilling.purchasing.dto;
 
 import com.simplifiedbilling.purchasing.domain.SupplierPaymentMode;
+import com.simplifiedbilling.purchasing.domain.PurchaseReturnReason;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -60,5 +61,18 @@ public final class PurchasingRequests {
             @Size(max = 100) String reference,
             @Size(max = 500) String notes,
             long balanceVersion) {
+    }
+
+    public record CreatePurchaseReturnRequest(
+            @NotNull LocalDate returnDate,
+            @NotNull PurchaseReturnReason reason,
+            @NotEmpty @Size(max = 100) List<@Valid PurchaseReturnItemRequest> items,
+            @Size(max = 500) String notes) {
+    }
+
+    public record PurchaseReturnItemRequest(
+            @NotBlank String purchaseItemId,
+            @NotNull @DecimalMin(value = "0.001")
+            @Digits(integer = 16, fraction = 3) BigDecimal quantity) {
     }
 }

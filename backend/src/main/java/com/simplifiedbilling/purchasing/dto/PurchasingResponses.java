@@ -4,6 +4,7 @@ import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.purchasing.domain.PurchaseStatus;
 import com.simplifiedbilling.purchasing.domain.SupplierLedgerEntryType;
 import com.simplifiedbilling.purchasing.domain.SupplierPaymentMode;
+import com.simplifiedbilling.purchasing.domain.PurchaseReturnReason;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +25,7 @@ public final class PurchasingResponses {
             String notes,
             boolean active,
             BigDecimal outstandingAmount,
+            BigDecimal creditAmount,
             long version,
             long balanceVersion,
             Instant createdAt,
@@ -32,7 +34,9 @@ public final class PurchasingResponses {
 
     public record SummaryResponse(
             BigDecimal totalOutstanding,
+            BigDecimal totalCredit,
             long suppliersWithDue,
+            long suppliersWithCredit,
             long activeSuppliers) {
     }
 
@@ -42,8 +46,11 @@ public final class PurchasingResponses {
             SupplierLedgerEntryType entryType,
             BigDecimal amount,
             BigDecimal balanceAfter,
+            BigDecimal creditBalanceAfter,
             String purchaseId,
             String purchaseNumber,
+            String purchaseReturnId,
+            String purchaseReturnNumber,
             SupplierPaymentMode paymentMode,
             String paymentReference,
             String notes,
@@ -56,6 +63,7 @@ public final class PurchasingResponses {
             String supplierId,
             BigDecimal amount,
             BigDecimal balanceAfter,
+            BigDecimal creditBalanceAfter,
             SupplierPaymentMode paymentMode,
             Instant occurredAt,
             boolean idempotentReplay) {
@@ -103,7 +111,66 @@ public final class PurchasingResponses {
     }
 
     public record PurchaseLineResponse(
+            String purchaseItemId,
             int lineNumber,
+            String productId,
+            String productName,
+            ProductUnit unit,
+            BigDecimal quantity,
+            BigDecimal returnedQuantity,
+            BigDecimal returnableQuantity,
+            BigDecimal unitCost,
+            BigDecimal gstRate,
+            BigDecimal taxableAmount,
+            BigDecimal taxAmount,
+            BigDecimal lineTotal) {
+    }
+
+    public record PurchaseReturnSummaryResponse(
+            String id,
+            String returnNumber,
+            String purchaseId,
+            String purchaseNumber,
+            String supplierId,
+            String supplierName,
+            LocalDate returnDate,
+            PurchaseReturnReason reason,
+            BigDecimal totalAmount,
+            BigDecimal payableReduction,
+            BigDecimal creditAdded,
+            Instant returnedAt) {
+    }
+
+    public record PurchaseReturnResponse(
+            String id,
+            String returnNumber,
+            String purchaseId,
+            String purchaseNumber,
+            String supplierId,
+            String supplierName,
+            LocalDate returnDate,
+            PurchaseReturnReason reason,
+            BigDecimal subtotalAmount,
+            BigDecimal taxAmount,
+            BigDecimal totalAmount,
+            BigDecimal payableReduction,
+            BigDecimal creditAdded,
+            BigDecimal supplierPayableAfter,
+            BigDecimal supplierCreditAfter,
+            String notes,
+            String actorUserId,
+            Instant returnedAt,
+            List<PurchaseReturnLineResponse> items,
+            boolean idempotentReplay) {
+
+        public PurchaseReturnResponse {
+            items = List.copyOf(items);
+        }
+    }
+
+    public record PurchaseReturnLineResponse(
+            int lineNumber,
+            String purchaseItemId,
             String productId,
             String productName,
             ProductUnit unit,
@@ -113,5 +180,34 @@ public final class PurchasingResponses {
             BigDecimal taxableAmount,
             BigDecimal taxAmount,
             BigDecimal lineTotal) {
+    }
+
+    public record SupplierAnalyticsResponse(
+            LocalDate from,
+            LocalDate to,
+            String timezone,
+            BigDecimal purchaseTotal,
+            BigDecimal returnTotal,
+            BigDecimal netPurchaseTotal,
+            BigDecimal paymentTotal,
+            BigDecimal totalOutstanding,
+            BigDecimal totalCredit,
+            List<SupplierAnalyticsRowResponse> suppliers,
+            Instant generatedAt) {
+
+        public SupplierAnalyticsResponse {
+            suppliers = List.copyOf(suppliers);
+        }
+    }
+
+    public record SupplierAnalyticsRowResponse(
+            String supplierId,
+            String supplierName,
+            BigDecimal purchaseTotal,
+            BigDecimal returnTotal,
+            BigDecimal netPurchaseTotal,
+            BigDecimal paymentTotal,
+            BigDecimal outstandingAmount,
+            BigDecimal creditAmount) {
     }
 }

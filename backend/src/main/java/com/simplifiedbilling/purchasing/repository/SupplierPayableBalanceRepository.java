@@ -20,5 +20,10 @@ public interface SupplierPayableBalanceRepository
     @Query("select coalesce(sum(b.outstandingAmount), 0) from SupplierPayableBalance b")
     BigDecimal totalOutstanding();
 
+    @Query("select coalesce(sum(b.creditAmount), 0) from SupplierPayableBalance b")
+    BigDecimal totalCredit();
+
     long countByOutstandingAmountGreaterThan(BigDecimal amount);
+
+    long countByCreditAmountGreaterThan(BigDecimal amount);
 }

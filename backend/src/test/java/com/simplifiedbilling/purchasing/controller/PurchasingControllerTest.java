@@ -26,16 +26,25 @@ class PurchasingControllerTest {
         PurchasingRequests.UpdateSupplierRequest update = mock(PurchasingRequests.UpdateSupplierRequest.class);
         PurchasingRequests.SupplierPaymentRequest payment = mock(PurchasingRequests.SupplierPaymentRequest.class);
         PurchasingRequests.ReceivePurchaseRequest receive = mock(PurchasingRequests.ReceivePurchaseRequest.class);
+        PurchasingRequests.CreatePurchaseReturnRequest createReturn =
+                mock(PurchasingRequests.CreatePurchaseReturnRequest.class);
         PurchasingResponses.SupplierResponse supplier = mock(PurchasingResponses.SupplierResponse.class);
         PurchasingResponses.SummaryResponse summary = mock(PurchasingResponses.SummaryResponse.class);
         PurchasingResponses.SupplierPaymentResponse paid = mock(PurchasingResponses.SupplierPaymentResponse.class);
         PurchasingResponses.PurchaseResponse purchase = mock(PurchasingResponses.PurchaseResponse.class);
+        PurchasingResponses.PurchaseReturnResponse purchaseReturn =
+                mock(PurchasingResponses.PurchaseReturnResponse.class);
+        PurchasingResponses.SupplierAnalyticsResponse analytics =
+                mock(PurchasingResponses.SupplierAnalyticsResponse.class);
         @SuppressWarnings("unchecked")
         PurchasingPage<PurchasingResponses.SupplierResponse> suppliers = mock(PurchasingPage.class);
         @SuppressWarnings("unchecked")
         PurchasingPage<PurchasingResponses.SupplierLedgerResponse> statement = mock(PurchasingPage.class);
         @SuppressWarnings("unchecked")
         PurchasingPage<PurchasingResponses.PurchaseSummaryResponse> purchases = mock(PurchasingPage.class);
+        @SuppressWarnings("unchecked")
+        PurchasingPage<PurchasingResponses.PurchaseReturnSummaryResponse> purchaseReturns =
+                mock(PurchasingPage.class);
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 2);
 
@@ -49,6 +58,12 @@ class PurchasingControllerTest {
         when(service.searchPurchases("pur", "supplier", from, to, 0, 25)).thenReturn(purchases);
         when(service.receivePurchase("actor", "purchase-key", receive)).thenReturn(purchase);
         when(service.getPurchase("purchase")).thenReturn(purchase);
+        when(service.returnPurchase("actor", "purchase", "return-key", createReturn))
+                .thenReturn(purchaseReturn);
+        when(service.searchPurchaseReturns(
+                "prn", "supplier", "purchase", from, to, 0, 25)).thenReturn(purchaseReturns);
+        when(service.getPurchaseReturn("return")).thenReturn(purchaseReturn);
+        when(service.getSupplierAnalytics(from, to)).thenReturn(analytics);
 
         assertThat(controller.summary()).isSameAs(summary);
         assertThat(controller.suppliers("fresh", true, SupplierBalanceStatus.DUE, 0, 25)).isSameAs(suppliers);
@@ -60,5 +75,11 @@ class PurchasingControllerTest {
         assertThat(controller.purchases("pur", "supplier", from, to, 0, 25)).isSameAs(purchases);
         assertThat(controller.receivePurchase(jwt, "purchase-key", receive)).isSameAs(purchase);
         assertThat(controller.getPurchase("purchase")).isSameAs(purchase);
+        assertThat(controller.returnPurchase(jwt, "purchase", "return-key", createReturn))
+                .isSameAs(purchaseReturn);
+        assertThat(controller.purchaseReturns(
+                "prn", "supplier", "purchase", from, to, 0, 25)).isSameAs(purchaseReturns);
+        assertThat(controller.getPurchaseReturn("return")).isSameAs(purchaseReturn);
+        assertThat(controller.supplierAnalytics(from, to)).isSameAs(analytics);
     }
 }

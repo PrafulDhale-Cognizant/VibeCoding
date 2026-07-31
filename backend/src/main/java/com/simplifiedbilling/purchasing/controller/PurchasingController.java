@@ -119,4 +119,43 @@ public class PurchasingController {
     public PurchasingResponses.PurchaseResponse getPurchase(@PathVariable String purchaseId) {
         return purchasingService.getPurchase(purchaseId);
     }
+
+    @PostMapping("/purchases/{purchaseId}/returns")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PurchasingResponses.PurchaseReturnResponse returnPurchase(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String purchaseId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody PurchasingRequests.CreatePurchaseReturnRequest request) {
+        return purchasingService.returnPurchase(
+                jwt.getSubject(), purchaseId, idempotencyKey, request);
+    }
+
+    @GetMapping("/returns")
+    public PurchasingPage<PurchasingResponses.PurchaseReturnSummaryResponse> purchaseReturns(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String supplierId,
+            @RequestParam(required = false) String purchaseId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return purchasingService.searchPurchaseReturns(
+                query, supplierId, purchaseId, from, to, page, size);
+    }
+
+    @GetMapping("/returns/{purchaseReturnId}")
+    public PurchasingResponses.PurchaseReturnResponse getPurchaseReturn(
+            @PathVariable String purchaseReturnId) {
+        return purchasingService.getPurchaseReturn(purchaseReturnId);
+    }
+
+    @GetMapping("/analytics")
+    public PurchasingResponses.SupplierAnalyticsResponse supplierAnalytics(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return purchasingService.getSupplierAnalytics(from, to);
+    }
 }

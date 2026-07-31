@@ -50,4 +50,26 @@ class PurchasingUtilitiesTest {
                         exception -> assertThat(exception.getCode())
                                 .isEqualTo("PURCHASE_SEQUENCE_UNAVAILABLE"));
     }
+
+    @Test
+    void allocatesReturnNumberAndFailsClearlyWhenSequenceIsUnavailable() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.queryForObject(
+                "SELECT next_value FROM purchase_return_sequences WHERE sequence_name = ? FOR UPDATE",
+                Long.class, "PURCHASE_RETURN")).thenReturn(7L);
+        PurchaseReturnNumberAllocator allocator = new PurchaseReturnNumberAllocator(jdbc);
+
+        assertThat(allocator.next()).isEqualTo("PRN-000007");
+        verify(jdbc).update(
+                "UPDATE purchase_return_sequences SET next_value = ? WHERE sequence_name = ?",
+                8L, "PURCHASE_RETURN");
+
+        when(jdbc.queryForObject(
+                "SELECT next_value FROM purchase_return_sequences WHERE sequence_name = ? FOR UPDATE",
+                Long.class, "PURCHASE_RETURN")).thenReturn(null);
+        assertThatThrownBy(allocator::next)
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode())
+                                .isEqualTo("PURCHASE_RETURN_SEQUENCE_UNAVAILABLE"));
+    }
 }

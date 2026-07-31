@@ -32,3 +32,11 @@ CREATE TABLE IF NOT EXISTS purchase_sequences (
 
 MERGE INTO purchase_sequences (sequence_name, next_value)
 KEY (sequence_name) VALUES ('PURCHASE', 1);
+
+CREATE TABLE IF NOT EXISTS purchase_return_sequences (
+    sequence_name VARCHAR(32) PRIMARY KEY,
+    next_value BIGINT NOT NULL
+);
+
+MERGE INTO purchase_return_sequences (sequence_name, next_value)
+KEY (sequence_name) VALUES ('PURCHASE_RETURN', 1);

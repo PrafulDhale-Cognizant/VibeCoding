@@ -4,6 +4,7 @@ import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.inventory.service.PurchaseProductSnapshot;
 import com.simplifiedbilling.purchasing.mapper.PurchasingMapper;
 import com.simplifiedbilling.purchasing.service.PurchasePricingEngine;
+import com.simplifiedbilling.purchasing.service.PurchaseReturnSelection;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ class PurchasingDomainTest {
         assertThat(balance.getSupplierId()).isEqualTo(supplier.getId());
         assertThat(balance.getSupplier()).isSameAs(supplier);
         assertThat(balance.getOutstandingAmount()).isZero();
+        assertThat(balance.getCreditAmount()).isZero();
         assertThat(balance.getVersion()).isZero();
         assertThat(balance.addPayable(new BigDecimal("500.00"), NOW.plusSeconds(1)))
                 .isEqualByComparingTo("500.00");
@@ -98,6 +100,8 @@ class PurchasingDomainTest {
         assertThat(item.getProductName()).isEqualTo("Rice");
         assertThat(item.getUnit()).isEqualTo(ProductUnit.KILOGRAM);
         assertThat(item.getQuantity()).isEqualByComparingTo("2.000");
+        assertThat(item.getReturnedQuantity()).isZero();
+        assertThat(item.getReturnableQuantity()).isEqualByComparingTo("2.000");
         assertThat(item.getUnitCost()).isEqualByComparingTo("118.00");
         assertThat(item.getGstRate()).isEqualByComparingTo("18.00");
         assertThat(item.getTaxableAmount()).isEqualByComparingTo("200.00");
@@ -159,6 +163,67 @@ class PurchasingDomainTest {
                 SupplierPaymentMode.CASH, "payment-key", null, null, "actor", NOW);
         assertThat(mapper.toLedger(payment).purchaseId()).isNull();
         assertThat(mapper.toPayment(payment, true).idempotentReplay()).isTrue();
+    }
+
+    @Test
+    void returnFactoriesTrackCumulativeQuantityAndTwoSidedSupplierBalance() {
+        Supplier supplier = Supplier.create("Fresh Foods", "9876543210", null, null, null, NOW);
+        supplier.getPayableBalance().addPayable(new BigDecimal("30.00"), NOW);
+        var purchasePricing = new PurchasePricingEngine().calculate(List.of(new PurchaseProductSnapshot(
+                "product", "Rice", ProductUnit.KILOGRAM, new BigDecimal("2.000"),
+                new BigDecimal("118.00"), new BigDecimal("18.00"))), true);
+        Purchase purchase = Purchase.received(
+                "purchase", "PUR-1", "purchase-key", supplier, null,
+                LocalDate.of(2026, 8, 1), purchasePricing, ZERO,
+                null, null, null, "actor", NOW);
+        PurchaseItem source = purchase.getItems().getFirst();
+        PurchaseReturnSelection selection = new PurchaseReturnSelection(
+                source, new BigDecimal("0.500"));
+        var returnPricing = new PurchasePricingEngine().calculate(List.of(new PurchaseProductSnapshot(
+                source.getProductId(), source.getProductName(), source.getUnit(), selection.quantity(),
+                source.getUnitCost(), source.getGstRate())), true);
+        var movement = supplier.getPayableBalance().applyReturn(
+                returnPricing.totalAmount(), NOW.plusSeconds(1));
+        source.registerReturn(selection.quantity());
+        PurchaseReturn purchaseReturn = PurchaseReturn.completed(
+                "return", "PRN-1", "return-key", purchase,
+                LocalDate.of(2026, 8, 2), PurchaseReturnReason.QUALITY_ISSUE,
+                returnPricing, List.of(selection), movement, "Accepted", "actor", NOW.plusSeconds(1));
+
+        assertThat(source.getReturnedQuantity()).isEqualByComparingTo("0.500");
+        assertThat(source.getReturnableQuantity()).isEqualByComparingTo("1.500");
+        assertThatThrownBy(() -> source.registerReturn(new BigDecimal("1.501")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> source.registerReturn(BigDecimal.ZERO))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(purchaseReturn.getReturnNumber()).isEqualTo("PRN-1");
+        assertThat(purchaseReturn.getPurchase()).isSameAs(purchase);
+        assertThat(purchaseReturn.getReason()).isEqualTo(PurchaseReturnReason.QUALITY_ISSUE);
+        assertThat(purchaseReturn.getTotalAmount()).isEqualByComparingTo("59.00");
+        assertThat(purchaseReturn.getPayableReduction()).isEqualByComparingTo("30.00");
+        assertThat(purchaseReturn.getCreditAdded()).isEqualByComparingTo("29.00");
+        assertThat(purchaseReturn.getItems()).singleElement().satisfies(item -> {
+            assertThat(item.getPurchaseItem()).isSameAs(source);
+            assertThat(item.getQuantity()).isEqualByComparingTo("0.500");
+        });
+
+        SupplierLedgerEntry ledger = SupplierLedgerEntry.purchaseReturn(
+                supplier, purchaseReturn, purchaseReturn.getTotalAmount(),
+                movement.payableAfter(), movement.creditAfter(), "actor", NOW.plusSeconds(1));
+        assertThat(ledger.getEntryType()).isEqualTo(SupplierLedgerEntryType.PURCHASE_RETURN);
+        assertThat(ledger.getPurchaseReturn()).isSameAs(purchaseReturn);
+        assertThat(new PurchasingMapper().toPurchaseReturn(purchaseReturn, false).items())
+                .singleElement().satisfies(item -> assertThat(item.purchaseItemId()).isEqualTo(source.getId()));
+        assertThat(new PurchasingMapper().toLedger(ledger).purchaseReturnNumber()).isEqualTo("PRN-1");
+
+        var firstPurchase = supplier.getPayableBalance().applyPurchase(
+                new BigDecimal("20.00"), NOW.plusSeconds(2));
+        assertThat(firstPurchase.payableAfter()).isZero();
+        assertThat(firstPurchase.creditAfter()).isEqualByComparingTo("9.00");
+        var secondPurchase = supplier.getPayableBalance().applyPurchase(
+                new BigDecimal("19.00"), NOW.plusSeconds(3));
+        assertThat(secondPurchase.payableAfter()).isEqualByComparingTo("10.00");
+        assertThat(secondPurchase.creditAfter()).isZero();
     }
 
     private static final BigDecimal ZERO = new BigDecimal("0.00");

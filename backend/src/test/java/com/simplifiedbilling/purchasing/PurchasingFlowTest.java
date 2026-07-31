@@ -10,6 +10,7 @@ import com.simplifiedbilling.inventory.service.StockService;
 import com.simplifiedbilling.purchasing.domain.SupplierBalanceStatus;
 import com.simplifiedbilling.purchasing.domain.SupplierLedgerEntryType;
 import com.simplifiedbilling.purchasing.domain.SupplierPaymentMode;
+import com.simplifiedbilling.purchasing.domain.PurchaseReturnReason;
 import com.simplifiedbilling.purchasing.dto.PurchasingRequests;
 import com.simplifiedbilling.purchasing.service.PurchasingService;
 import org.junit.jupiter.api.Test;
@@ -121,7 +122,48 @@ class PurchasingFlowTest {
         assertThat(replay.entryId()).isEqualTo(paid.entryId());
         assertThat(replay.idempotentReplay()).isTrue();
 
-        assertThat(purchasingService.getSummary().totalOutstanding()).isEqualByComparingTo("35.00");
+        var returned = purchasingService.returnPurchase(
+                actor,
+                received.id(),
+                "return-flow-1",
+                new PurchasingRequests.CreatePurchaseReturnRequest(
+                        LocalDate.of(2026, 8, 1),
+                        PurchaseReturnReason.QUALITY_ISSUE,
+                        List.of(new PurchasingRequests.PurchaseReturnItemRequest(
+                                received.items().getFirst().purchaseItemId(), new BigDecimal("2.000"))),
+                        "Supplier accepted return"));
+        assertThat(returned.totalAmount()).isEqualByComparingTo("40.00");
+        assertThat(returned.payableReduction()).isEqualByComparingTo("35.00");
+        assertThat(returned.creditAdded()).isEqualByComparingTo("5.00");
+        assertThat(returned.supplierPayableAfter()).isZero();
+        assertThat(returned.supplierCreditAfter()).isEqualByComparingTo("5.00");
+        assertThat(productService.getProduct(product.id()).stockQuantity()).isEqualByComparingTo("5.500");
+        assertThat(stockService.getStockLedger(product.id(), 0, 25).content())
+                .extracting("reasonCode")
+                .containsExactly(
+                        StockReasonCode.PURCHASE_RETURN,
+                        StockReasonCode.PURCHASE,
+                        StockReasonCode.OPENING_STOCK);
+        assertThat(purchasingService.getPurchase(received.id()).items())
+                .singleElement().satisfies(item -> {
+                    assertThat(item.returnedQuantity()).isEqualByComparingTo("2.000");
+                    assertThat(item.returnableQuantity()).isEqualByComparingTo("2.500");
+                });
+        assertThat(purchasingService.returnPurchase(
+                actor,
+                received.id(),
+                "return-flow-1",
+                new PurchasingRequests.CreatePurchaseReturnRequest(
+                        LocalDate.of(2026, 8, 1), PurchaseReturnReason.QUALITY_ISSUE,
+                        List.of(new PurchasingRequests.PurchaseReturnItemRequest(
+                                received.items().getFirst().purchaseItemId(), new BigDecimal("2.000"))),
+                        "Supplier accepted return")).idempotentReplay()).isTrue();
+
+        assertThat(purchasingService.getSummary().totalOutstanding()).isZero();
+        assertThat(purchasingService.getSummary().totalCredit()).isEqualByComparingTo("5.00");
+        assertThat(purchasingService.searchSuppliers(
+                "Fresh", true, SupplierBalanceStatus.CREDIT, 0, 25).content())
+                .extracting("id").containsExactly(supplier.id());
         assertThat(purchasingService.searchPurchases(
                 "FW-2026", supplier.id(), null, null, 0, 25).content())
                 .extracting("id")
@@ -129,7 +171,13 @@ class PurchasingFlowTest {
         assertThat(purchasingService.getSupplierStatement(supplier.id(), 0, 25).content())
                 .extracting("entryType")
                 .containsExactly(
+                        SupplierLedgerEntryType.PURCHASE_RETURN,
                         SupplierLedgerEntryType.PAYMENT,
                         SupplierLedgerEntryType.PURCHASE_DUE);
+        assertThat(purchasingService.searchPurchaseReturns(
+                returned.returnNumber(), supplier.id(), received.id(),
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), 0, 25).content())
+                .extracting("id")
+                .containsExactly(returned.id());
     }
 }

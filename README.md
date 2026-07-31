@@ -30,6 +30,9 @@ and **Purchase & Supplier Management** modules:
 - purchase receiving with GST-aware immutable line snapshots and supplier invoice references
 - pessimistically locked stock increases and automatic latest-purchase-cost updates
 - purchase and supplier desktop workspaces with due filters and detailed receiving history
+- full and partial purchase returns with cumulative source-line quantity protection
+- locked supplier-return stock reversals and two-sided payable/supplier-credit accounting
+- supplier analytics with date filters, CSV export and printable A4 summaries
 - Material-inspired desktop design with Light, Dark and System appearance modes
 - five locally persisted color palettes: Ocean, Teal, Rose, Amber and Violet
 - React 19 and Tailwind CSS setup, login, POS, inventory, purchasing, Khata, reports, settings, users, and account screens
@@ -37,7 +40,7 @@ and **Purchase & Supplier Management** modules:
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Purchase returns and production-grade backup/restore remain separate implementation milestones.
+Production-grade backup/restore remains a separate implementation milestone.
 
 ## Documentation
 
@@ -294,12 +297,12 @@ mvn -f backend/pom.xml clean verify
 ```
 
 The build fails below 90% backend line coverage or 80% branch coverage. The current suite contains
-147 passing tests. The HTML report is generated at `backend/target/site/jacoco/index.html`.
+154 passing tests. The HTML report is generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 99.33% | 90% |
-| Branches | 88.36% | 80% |
+| Lines | 99.19% | 90% |
+| Branches | 86.97% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -420,6 +423,9 @@ The current migrations create:
 - `billing.purchases`
 - `billing.purchase_items`
 - `billing.supplier_ledger_entries`
+- `billing.purchase_return_sequences`
+- `billing.purchase_returns`
+- `billing.purchase_return_items`
 - supporting audit, catalog, barcode, stock-ledger, invoice and purchasing indexes
 
 ## Store setup and authentication API
@@ -494,13 +500,17 @@ or statement history; inactive suppliers cannot receive new purchases.
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/purchasing/summary` | Return total supplier payables, due-supplier count and active-supplier count |
+| `GET` | `/api/v1/purchasing/summary` | Return supplier payables, supplier credits and account counts |
 | `GET/POST` | `/api/v1/purchasing/suppliers` | Search/page or create suppliers |
 | `GET/PUT` | `/api/v1/purchasing/suppliers/{supplierId}` | Read or version-update a supplier |
-| `GET` | `/api/v1/purchasing/suppliers/{supplierId}/statement` | Page immutable purchase-due and payment history |
+| `GET` | `/api/v1/purchasing/suppliers/{supplierId}/statement` | Page immutable purchase, return and payment history |
 | `POST` | `/api/v1/purchasing/suppliers/{supplierId}/payments` | Record an idempotent full or partial supplier payment |
 | `GET/POST` | `/api/v1/purchasing/purchases` | Search/page purchases or receive a supplier invoice |
 | `GET` | `/api/v1/purchasing/purchases/{purchaseId}` | Retrieve an immutable purchase and item snapshot |
+| `POST` | `/api/v1/purchasing/purchases/{purchaseId}/returns` | Complete an idempotent full or partial purchase return |
+| `GET` | `/api/v1/purchasing/returns` | Search/page purchase returns by supplier, purchase or date |
+| `GET` | `/api/v1/purchasing/returns/{purchaseReturnId}` | Retrieve an immutable purchase-return snapshot |
+| `GET` | `/api/v1/purchasing/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD` | Return supplier-wise purchase, return, payment and balance analytics |
 
 Purchase receiving accepts tax-inclusive or tax-exclusive unit costs. The backend calculates GST,
 locks product balances in deterministic product-ID order, increases stock, updates each product's
@@ -508,10 +518,20 @@ latest purchase cost and creates a `PURCHASE` stock-ledger transaction. Receipt 
 commands require an `Idempotency-Key`; supplier balances are pessimistically locked and payment
 requests include the current balance version to reject stale writes.
 
+Purchase returns are valued from the immutable original purchase-line cost and GST snapshots.
+The source purchase, supplier balance and product stock are locked in one transaction. A return
+cannot exceed the remaining unreturned purchase quantity or currently available stock. Its value
+first reduces the supplier payable; any excess is retained as supplier credit and automatically
+offsets later unpaid purchases. Every reversal creates an immutable `PURCHASE_RETURN` stock entry
+and supplier statement entry.
+
 The desktop Purchasing workspace provides supplier search and balance filters, contact maintenance,
 payable summaries, statement history, Owner/Admin payments, purchase search and purchase-detail
 views. Its receiving form searches active inventory, accepts quantities and costs, previews GST and
-payables, and commits inventory and supplier balance changes atomically.
+payables, and commits inventory and supplier balance changes atomically. Purchase details expose
+remaining returnable quantities; completed returns have their own searchable history and detail
+view. The Analytics tab provides store-timezone-aware supplier totals, current payable/credit
+balances, UTF-8 CSV export and operating-system A4 printing.
 
 ## Point of Sale API and desktop workflow
 
@@ -711,15 +731,15 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-Store setup, authentication, inventory, POS, Khata, Dashboard & Reports, and the first Purchase &
-Supplier Management slice are complete. The next business slice is **Purchase Returns & Supplier
-Analytics**:
+Store setup, authentication, inventory, POS, Khata, Dashboard & Reports, Purchase & Supplier
+Management, and Purchase Returns & Supplier Analytics are complete. The next business slice is
+**Sales Returns & Refunds**:
 
-1. full and partial purchase returns against immutable purchase lines
-2. locked stock decreases with `PURCHASE_RETURN` ledger references
-3. supplier debit adjustments and return settlement history
-4. supplier-wise purchase, tax, outstanding and payment reports
-5. printable/exportable purchase and payable summaries
+1. full and partial customer returns against immutable invoice lines
+2. locked stock restoration with `SALE_RETURN` ledger references
+3. Cash, UPI and Card refund records plus Udhaar balance reversal
+4. original-price, discount and GST snapshot calculations
+5. printable return receipts and sales-return analytics
 
 Encrypted backup/restore, managed local database lifecycle and installer hardening remain part of
 the desktop-operations milestone before production deployment.

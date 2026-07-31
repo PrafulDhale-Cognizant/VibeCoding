@@ -1,8 +1,13 @@
 package com.simplifiedbilling.purchasing.service.impl;
 
 import com.simplifiedbilling.inventory.service.PurchaseInventoryService;
+import com.simplifiedbilling.inventory.service.PurchaseProductSnapshot;
+import com.simplifiedbilling.inventory.service.PurchaseReturnInventoryService;
+import com.simplifiedbilling.inventory.service.PurchaseReturnStockRequest;
 import com.simplifiedbilling.inventory.service.PurchaseStockRequest;
 import com.simplifiedbilling.purchasing.domain.Purchase;
+import com.simplifiedbilling.purchasing.domain.PurchaseItem;
+import com.simplifiedbilling.purchasing.domain.PurchaseReturn;
 import com.simplifiedbilling.purchasing.domain.Supplier;
 import com.simplifiedbilling.purchasing.domain.SupplierBalanceStatus;
 import com.simplifiedbilling.purchasing.domain.SupplierLedgerEntry;
@@ -12,15 +17,20 @@ import com.simplifiedbilling.purchasing.dto.PurchasingRequests;
 import com.simplifiedbilling.purchasing.dto.PurchasingResponses;
 import com.simplifiedbilling.purchasing.mapper.PurchasingMapper;
 import com.simplifiedbilling.purchasing.repository.PurchaseRepository;
+import com.simplifiedbilling.purchasing.repository.PurchaseReturnRepository;
+import com.simplifiedbilling.purchasing.repository.SupplierAmountAggregate;
 import com.simplifiedbilling.purchasing.repository.SupplierLedgerRepository;
 import com.simplifiedbilling.purchasing.repository.SupplierPayableBalanceRepository;
 import com.simplifiedbilling.purchasing.repository.SupplierRepository;
 import com.simplifiedbilling.purchasing.service.PurchaseNumberAllocator;
 import com.simplifiedbilling.purchasing.service.PurchasePricingEngine;
+import com.simplifiedbilling.purchasing.service.PurchaseReturnNumberAllocator;
+import com.simplifiedbilling.purchasing.service.PurchaseReturnSelection;
 import com.simplifiedbilling.purchasing.service.PurchasingService;
 import com.simplifiedbilling.purchasing.service.SupplierPhoneNormalizer;
 import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
+import com.simplifiedbilling.store.service.StoreService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -32,7 +42,10 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.DateTimeException;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,12 +63,16 @@ public class DefaultPurchasingService implements PurchasingService {
     private final SupplierPayableBalanceRepository balanceRepository;
     private final SupplierLedgerRepository ledgerRepository;
     private final PurchaseRepository purchaseRepository;
+    private final PurchaseReturnRepository purchaseReturnRepository;
     private final PurchaseInventoryService inventoryService;
+    private final PurchaseReturnInventoryService returnInventoryService;
     private final PurchasePricingEngine pricingEngine;
     private final PurchaseNumberAllocator numberAllocator;
+    private final PurchaseReturnNumberAllocator returnNumberAllocator;
     private final SupplierPhoneNormalizer phoneNormalizer;
     private final PurchasingMapper mapper;
     private final AuditWriter auditWriter;
+    private final StoreService storeService;
     private final Clock clock;
 
     public DefaultPurchasingService(
@@ -63,23 +80,31 @@ public class DefaultPurchasingService implements PurchasingService {
             SupplierPayableBalanceRepository balanceRepository,
             SupplierLedgerRepository ledgerRepository,
             PurchaseRepository purchaseRepository,
+            PurchaseReturnRepository purchaseReturnRepository,
             PurchaseInventoryService inventoryService,
+            PurchaseReturnInventoryService returnInventoryService,
             PurchasePricingEngine pricingEngine,
             PurchaseNumberAllocator numberAllocator,
+            PurchaseReturnNumberAllocator returnNumberAllocator,
             SupplierPhoneNormalizer phoneNormalizer,
             PurchasingMapper mapper,
             AuditWriter auditWriter,
+            StoreService storeService,
             Clock clock) {
         this.supplierRepository = supplierRepository;
         this.balanceRepository = balanceRepository;
         this.ledgerRepository = ledgerRepository;
         this.purchaseRepository = purchaseRepository;
+        this.purchaseReturnRepository = purchaseReturnRepository;
         this.inventoryService = inventoryService;
+        this.returnInventoryService = returnInventoryService;
         this.pricingEngine = pricingEngine;
         this.numberAllocator = numberAllocator;
+        this.returnNumberAllocator = returnNumberAllocator;
         this.phoneNormalizer = phoneNormalizer;
         this.mapper = mapper;
         this.auditWriter = auditWriter;
+        this.storeService = storeService;
         this.clock = clock;
     }
 
@@ -149,9 +174,12 @@ public class DefaultPurchasingService implements PurchasingService {
     @Transactional(readOnly = true)
     public PurchasingResponses.SummaryResponse getSummary() {
         BigDecimal total = balanceRepository.totalOutstanding();
+        BigDecimal credit = balanceRepository.totalCredit();
         return new PurchasingResponses.SummaryResponse(
                 total == null ? ZERO : total.setScale(2, RoundingMode.HALF_UP),
+                credit == null ? ZERO : credit.setScale(2, RoundingMode.HALF_UP),
                 balanceRepository.countByOutstandingAmountGreaterThan(ZERO),
+                balanceRepository.countByCreditAmountGreaterThan(ZERO),
                 supplierRepository.countByActiveTrue());
     }
 
@@ -198,7 +226,8 @@ public class DefaultPurchasingService implements PurchasingService {
         Instant now = Instant.now(clock);
         BigDecimal balanceAfter = balance.pay(amount, now);
         SupplierLedgerEntry entry = SupplierLedgerEntry.payment(
-                balance.getSupplier(), amount, balanceAfter, request.paymentMode(), key,
+                balance.getSupplier(), amount, balanceAfter, balance.getCreditAmount(),
+                request.paymentMode(), key,
                 normalizeText(request.reference()), normalizeText(request.notes()), actorUserId, now);
         ledgerRepository.save(entry);
         balanceRepository.flush();
@@ -248,9 +277,10 @@ public class DefaultPurchasingService implements PurchasingService {
                 normalizeText(request.paymentReference()), normalizeText(request.notes()), actorUserId, now);
         purchaseRepository.saveAndFlush(purchase);
         if (purchase.getOutstandingAdded().signum() > 0) {
-            BigDecimal balanceAfter = balance.addPayable(purchase.getOutstandingAdded(), now);
+            var movement = balance.applyPurchase(purchase.getOutstandingAdded(), now);
             ledgerRepository.save(SupplierLedgerEntry.purchaseDue(
-                    supplier, purchase, purchase.getOutstandingAdded(), balanceAfter, actorUserId, now));
+                    supplier, purchase, purchase.getOutstandingAdded(), movement.payableAfter(),
+                    movement.creditAfter(), actorUserId, now));
             balanceRepository.flush();
         }
         auditWriter.write(
@@ -288,6 +318,161 @@ public class DefaultPurchasingService implements PurchasingService {
                 mapper::toPurchaseSummary);
     }
 
+    @Override
+    @Transactional
+    public PurchasingResponses.PurchaseReturnResponse returnPurchase(
+            String actorUserId, String purchaseId, String idempotencyKey,
+            PurchasingRequests.CreatePurchaseReturnRequest request) {
+        String key = normalizeIdempotencyKey(idempotencyKey);
+        PurchaseReturn replay = purchaseReturnRepository.findDetailedByIdempotencyKey(key).orElse(null);
+        if (replay != null) {
+            if (!replay.getPurchase().getId().equals(purchaseId)) {
+                throw conflict(
+                        "IDEMPOTENCY_KEY_REUSED",
+                        "This idempotency key belongs to another purchase return.");
+            }
+            return mapper.toPurchaseReturn(replay, true);
+        }
+
+        Purchase purchase = purchaseRepository.findDetailedByIdForUpdate(purchaseId)
+                .orElseThrow(this::purchaseNotFound);
+        if (request.returnDate().isBefore(purchase.getInvoiceDate())) {
+            throw invalid(
+                    "INVALID_PURCHASE_RETURN_DATE",
+                    "Return date cannot be before the supplier invoice date.");
+        }
+        SupplierPayableBalance balance = balanceRepository
+                .findBySupplierIdForUpdate(purchase.getSupplier().getId())
+                .orElseThrow(this::supplierNotFound);
+
+        Map<String, PurchaseItem> sourceItems = new HashMap<>();
+        purchase.getItems().forEach(item -> sourceItems.put(item.getId(), item));
+        Map<String, Boolean> selectedIds = new HashMap<>();
+        List<PurchaseReturnSelection> selections = request.items().stream().map(requested -> {
+            String itemId = requested.purchaseItemId().trim();
+            if (selectedIds.put(itemId, Boolean.TRUE) != null) {
+                throw invalid(
+                        "DUPLICATE_PURCHASE_RETURN_LINE",
+                        "A purchase line can appear only once in a return.");
+            }
+            PurchaseItem source = sourceItems.get(itemId);
+            if (source == null) {
+                throw invalid(
+                        "PURCHASE_RETURN_LINE_NOT_FOUND",
+                        "A selected item does not belong to this purchase.");
+            }
+            BigDecimal quantity = returnQuantity(requested.quantity());
+            if (quantity.compareTo(source.getReturnableQuantity()) > 0) {
+                throw conflict(
+                        "RETURN_QUANTITY_EXCEEDS_AVAILABLE",
+                        source.getProductName() + " return quantity exceeds the remaining purchased quantity.");
+            }
+            return new PurchaseReturnSelection(source, quantity);
+        }).toList();
+
+        List<PurchaseProductSnapshot> snapshots = selections.stream()
+                .map(selection -> new PurchaseProductSnapshot(
+                        selection.purchaseItem().getProductId(),
+                        selection.purchaseItem().getProductName(),
+                        selection.purchaseItem().getUnit(),
+                        selection.quantity(),
+                        selection.purchaseItem().getUnitCost(),
+                        selection.purchaseItem().getGstRate()))
+                .toList();
+        var pricing = pricingEngine.calculate(snapshots, purchase.isPricesIncludeTax());
+        String returnId = UUID.randomUUID().toString();
+        returnInventoryService.returnToSupplier(
+                actorUserId,
+                returnId,
+                selections.stream().map(selection -> new PurchaseReturnStockRequest(
+                        selection.purchaseItem().getProductId(),
+                        selection.purchaseItem().getProductName(),
+                        selection.quantity())).toList());
+
+        Instant now = Instant.now(clock);
+        var movement = balance.applyReturn(pricing.totalAmount(), now);
+        selections.forEach(selection -> selection.purchaseItem().registerReturn(selection.quantity()));
+        PurchaseReturn purchaseReturn = PurchaseReturn.completed(
+                returnId, returnNumberAllocator.next(), key, purchase, request.returnDate(),
+                request.reason(), pricing, selections, movement, normalizeText(request.notes()),
+                actorUserId, now);
+        purchaseReturnRepository.saveAndFlush(purchaseReturn);
+        ledgerRepository.save(SupplierLedgerEntry.purchaseReturn(
+                purchase.getSupplier(), purchaseReturn, purchaseReturn.getTotalAmount(),
+                movement.payableAfter(), movement.creditAfter(), actorUserId, now));
+        balanceRepository.flush();
+        auditWriter.write(
+                actorUserId, "PURCHASE_RETURN_COMPLETED", "PURCHASE_RETURN", returnId,
+                Map.of("returnNumber", purchaseReturn.getReturnNumber(),
+                        "purchaseId", purchaseId,
+                        "totalAmount", purchaseReturn.getTotalAmount()));
+        return mapper.toPurchaseReturn(purchaseReturn, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PurchasingResponses.PurchaseReturnResponse getPurchaseReturn(String purchaseReturnId) {
+        return mapper.toPurchaseReturn(
+                purchaseReturnRepository.findDetailedById(purchaseReturnId)
+                        .orElseThrow(this::purchaseReturnNotFound),
+                false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PurchasingPage<PurchasingResponses.PurchaseReturnSummaryResponse> searchPurchaseReturns(
+            String query, String supplierId, String purchaseId,
+            LocalDate from, LocalDate to, int page, int size) {
+        validatePage(page, size);
+        validateOptionalRange(from, to, "purchase return");
+        return PurchasingPage.from(
+                purchaseReturnRepository.search(
+                        normalizeText(supplierId), normalizeText(purchaseId), from, to,
+                        searchPattern(query),
+                        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "returnedAt"))),
+                mapper::toPurchaseReturnSummary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PurchasingResponses.SupplierAnalyticsResponse getSupplierAnalytics(
+            LocalDate from, LocalDate to) {
+        validateRequiredRange(from, to);
+        ZoneId zone = requireZone(storeService.getStore().timezone());
+        Map<String, BigDecimal> purchases = aggregate(purchaseRepository.totalBySupplier(from, to));
+        Map<String, BigDecimal> returns = aggregate(purchaseReturnRepository.totalBySupplier(from, to));
+        Map<String, BigDecimal> payments = aggregate(ledgerRepository.paymentsBySupplier(
+                from.atStartOfDay(zone).toInstant(),
+                to.plusDays(1).atStartOfDay(zone).toInstant()));
+
+        List<PurchasingResponses.SupplierAnalyticsRowResponse> rows = supplierRepository
+                .findAllDetailed().stream()
+                .map(supplier -> {
+                    BigDecimal purchaseTotal = purchases.getOrDefault(supplier.getId(), ZERO);
+                    BigDecimal returnTotal = returns.getOrDefault(supplier.getId(), ZERO);
+                    BigDecimal paymentTotal = payments.getOrDefault(supplier.getId(), ZERO);
+                    return new PurchasingResponses.SupplierAnalyticsRowResponse(
+                            supplier.getId(), supplier.getName(), purchaseTotal, returnTotal,
+                            purchaseTotal.subtract(returnTotal), paymentTotal,
+                            supplier.getPayableBalance().getOutstandingAmount(),
+                            supplier.getPayableBalance().getCreditAmount());
+                })
+                .filter(row -> row.purchaseTotal().signum() != 0
+                        || row.returnTotal().signum() != 0
+                        || row.paymentTotal().signum() != 0
+                        || row.outstandingAmount().signum() != 0
+                        || row.creditAmount().signum() != 0)
+                .toList();
+
+        BigDecimal purchaseTotal = sum(purchases);
+        BigDecimal returnTotal = sum(returns);
+        return new PurchasingResponses.SupplierAnalyticsResponse(
+                from, to, zone.getId(), purchaseTotal, returnTotal,
+                purchaseTotal.subtract(returnTotal), sum(payments),
+                normalizedMoney(balanceRepository.totalOutstanding()),
+                normalizedMoney(balanceRepository.totalCredit()), rows, Instant.now(clock));
+    }
+
     private void validateReceiptPayment(
             BigDecimal amountPaid, BigDecimal totalAmount,
             com.simplifiedbilling.purchasing.domain.SupplierPaymentMode mode) {
@@ -299,6 +484,70 @@ public class DefaultPurchasingService implements PurchasingService {
         }
         if (amountPaid.signum() == 0 && mode != null) {
             throw invalid("UNEXPECTED_PURCHASE_PAYMENT_MODE", "Payment mode must be empty when nothing was paid.");
+        }
+    }
+
+    private BigDecimal returnQuantity(BigDecimal value) {
+        if (value == null || value.signum() <= 0) {
+            throw invalid("INVALID_RETURN_QUANTITY", "Return quantity must be greater than zero.");
+        }
+        try {
+            return value.setScale(3, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException exception) {
+            throw invalid(
+                    "INVALID_QUANTITY_PRECISION",
+                    "Return quantities support at most three decimal places.");
+        }
+    }
+
+    private void validateOptionalRange(LocalDate from, LocalDate to, String label) {
+        if (from == null || to == null) return;
+        if (to.isBefore(from)) {
+            throw invalid(
+                    "INVALID_PURCHASE_RETURN_RANGE",
+                    "The " + label + " end date cannot be before the start date.");
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > 366) {
+            throw invalid(
+                    "PURCHASE_RETURN_RANGE_TOO_LARGE",
+                    "A " + label + " search can cover at most 366 days.");
+        }
+    }
+
+    private void validateRequiredRange(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw invalid("ANALYTICS_DATES_REQUIRED", "Both analytics dates are required.");
+        }
+        if (to.isBefore(from)) {
+            throw invalid("INVALID_ANALYTICS_RANGE", "Analytics end date cannot be before start date.");
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > 366) {
+            throw invalid("ANALYTICS_RANGE_TOO_LARGE", "Analytics can cover at most 366 days.");
+        }
+    }
+
+    private Map<String, BigDecimal> aggregate(List<SupplierAmountAggregate> values) {
+        Map<String, BigDecimal> result = new HashMap<>();
+        values.forEach(value -> result.put(value.getSupplierId(), normalizedMoney(value.getAmount())));
+        return result;
+    }
+
+    private BigDecimal sum(Map<String, BigDecimal> values) {
+        return values.values().stream().reduce(ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal normalizedMoney(BigDecimal value) {
+        return value == null ? ZERO : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private ZoneId requireZone(String timezone) {
+        try {
+            return ZoneId.of(timezone);
+        } catch (DateTimeException exception) {
+            throw new ApplicationException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "INVALID_STORE_TIMEZONE",
+                    "The configured store timezone is invalid.");
         }
     }
 
@@ -383,6 +632,13 @@ public class DefaultPurchasingService implements PurchasingService {
 
     private ApplicationException purchaseNotFound() {
         return new ApplicationException(HttpStatus.NOT_FOUND, "PURCHASE_NOT_FOUND", "The purchase does not exist.");
+    }
+
+    private ApplicationException purchaseReturnNotFound() {
+        return new ApplicationException(
+                HttpStatus.NOT_FOUND,
+                "PURCHASE_RETURN_NOT_FOUND",
+                "The purchase return does not exist.");
     }
 
     private ApplicationException invalid(String code, String message) {

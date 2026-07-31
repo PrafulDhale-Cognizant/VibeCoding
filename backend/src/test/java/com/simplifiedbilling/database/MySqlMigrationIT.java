@@ -72,11 +72,14 @@ class MySqlMigrationIT {
                       'supplier_payable_balances',
                       'purchases',
                       'purchase_items',
-                      'supplier_ledger_entries'
+                      'supplier_ledger_entries',
+                      'purchase_return_sequences',
+                      'purchase_returns',
+                      'purchase_return_items'
                   )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(26);
+        assertThat(tableCount).isEqualTo(29);
     }
 }

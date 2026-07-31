@@ -16,6 +16,9 @@ import type {
   ProductSort,
   ProductUpdateRequest,
   PurchaseResponse,
+  PurchaseReturnReason,
+  PurchaseReturnResponse,
+  PurchaseReturnSummaryResponse,
   PurchaseSummaryResponse,
   PurchasingSummaryResponse,
   SalesReportResponse,
@@ -29,6 +32,7 @@ import type {
   StockTransactionResponse,
   SettlementMode,
   SupplierBalanceStatus,
+  SupplierAnalyticsResponse,
   SupplierLedgerResponse,
   SupplierPaymentMode,
   SupplierPaymentResponse,
@@ -485,5 +489,54 @@ export const api = {
     accessToken
   ),
   getPurchase: (accessToken: string, purchaseId: string) =>
-    request<PurchaseResponse>(`/api/v1/purchasing/purchases/${purchaseId}`, {}, accessToken)
+    request<PurchaseResponse>(`/api/v1/purchasing/purchases/${purchaseId}`, {}, accessToken),
+  returnPurchase: (
+    accessToken: string,
+    purchaseId: string,
+    idempotencyKey: string,
+    body: {
+      returnDate: string;
+      reason: PurchaseReturnReason;
+      items: Array<{ purchaseItemId: string; quantity: number }>;
+      notes: string;
+    }
+  ) => request<PurchaseReturnResponse>(
+    `/api/v1/purchasing/purchases/${purchaseId}/returns`,
+    { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body) },
+    accessToken
+  ),
+  searchPurchaseReturns: (
+    accessToken: string,
+    filters: {
+      query?: string;
+      supplierId?: string;
+      purchaseId?: string;
+      from?: string;
+      to?: string;
+      page?: number;
+      size?: number;
+    }
+  ) => {
+    const parameters = new URLSearchParams();
+    if (filters.query?.trim()) parameters.set("query", filters.query.trim());
+    if (filters.supplierId) parameters.set("supplierId", filters.supplierId);
+    if (filters.purchaseId) parameters.set("purchaseId", filters.purchaseId);
+    if (filters.from) parameters.set("from", filters.from);
+    if (filters.to) parameters.set("to", filters.to);
+    parameters.set("page", String(filters.page ?? 0));
+    parameters.set("size", String(filters.size ?? 25));
+    return request<InventoryPage<PurchaseReturnSummaryResponse>>(
+      `/api/v1/purchasing/returns?${parameters.toString()}`, {}, accessToken
+    );
+  },
+  getPurchaseReturn: (accessToken: string, purchaseReturnId: string) =>
+    request<PurchaseReturnResponse>(
+      `/api/v1/purchasing/returns/${purchaseReturnId}`, {}, accessToken
+    ),
+  getSupplierAnalytics: (accessToken: string, from: string, to: string) => {
+    const parameters = new URLSearchParams({ from, to });
+    return request<SupplierAnalyticsResponse>(
+      `/api/v1/purchasing/analytics?${parameters.toString()}`, {}, accessToken
+    );
+  }
 };

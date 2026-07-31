@@ -5,17 +5,26 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
 
 public interface PurchaseRepository extends JpaRepository<Purchase, String> {
 
     @EntityGraph(attributePaths = {"supplier", "items"})
     @Query("select p from Purchase p where p.id = :id")
     Optional<Purchase> findDetailedById(@Param("id") String id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"supplier", "items"})
+    @Query("select p from Purchase p where p.id = :id")
+    Optional<Purchase> findDetailedByIdForUpdate(@Param("id") String id);
 
     @EntityGraph(attributePaths = {"supplier", "items"})
     @Query("select p from Purchase p where p.idempotencyKey = :key")
@@ -47,4 +56,14 @@ public interface PurchaseRepository extends JpaRepository<Purchase, String> {
             Pageable pageable);
 
     boolean existsBySupplier_IdAndSupplierInvoiceNumber(String supplierId, String supplierInvoiceNumber);
+
+    @Query("""
+            select p.supplier.id as supplierId, coalesce(sum(p.totalAmount), 0) as amount
+            from Purchase p
+            where p.invoiceDate between :fromDate and :toDate
+            group by p.supplier.id
+            """)
+    List<SupplierAmountAggregate> totalBySupplier(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 }

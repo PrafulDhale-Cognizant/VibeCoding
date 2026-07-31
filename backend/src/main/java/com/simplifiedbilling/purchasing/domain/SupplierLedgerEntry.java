@@ -44,9 +44,16 @@ public class SupplierLedgerEntry implements Persistable<String> {
     @Column(name = "balance_after", precision = 19, scale = 2, nullable = false, updatable = false)
     private BigDecimal balanceAfter;
 
+    @Column(name = "credit_balance_after", precision = 19, scale = 2, nullable = false, updatable = false)
+    private BigDecimal creditBalanceAfter;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_id", unique = true, updatable = false)
     private Purchase purchase;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_return_id", unique = true, updatable = false)
+    private PurchaseReturn purchaseReturn;
 
     @Column(name = "idempotency_key", length = 80, unique = true, updatable = false)
     private String idempotencyKey;
@@ -78,21 +85,51 @@ public class SupplierLedgerEntry implements Persistable<String> {
     public static SupplierLedgerEntry purchaseDue(
             Supplier supplier, Purchase purchase, BigDecimal amount,
             BigDecimal balanceAfter, String actorUserId, Instant now) {
+        return purchaseDue(
+                supplier, purchase, amount, balanceAfter, BigDecimal.ZERO.setScale(2), actorUserId, now);
+    }
+
+    public static SupplierLedgerEntry purchaseDue(
+            Supplier supplier, Purchase purchase, BigDecimal amount,
+            BigDecimal balanceAfter, BigDecimal creditBalanceAfter,
+            String actorUserId, Instant now) {
         return create(supplier, SupplierLedgerEntryType.PURCHASE_DUE, amount, balanceAfter,
-                purchase, null, null, null, "Purchase received on credit", actorUserId, now);
+                creditBalanceAfter, purchase, null, null, null, null,
+                "Purchase received on credit", actorUserId, now);
+    }
+
+    public static SupplierLedgerEntry purchaseReturn(
+            Supplier supplier, PurchaseReturn purchaseReturn, BigDecimal amount,
+            BigDecimal balanceAfter, BigDecimal creditBalanceAfter,
+            String actorUserId, Instant now) {
+        return create(supplier, SupplierLedgerEntryType.PURCHASE_RETURN, amount, balanceAfter,
+                creditBalanceAfter, null, purchaseReturn, null, null, null,
+                "Goods returned to supplier", actorUserId, now);
     }
 
     public static SupplierLedgerEntry payment(
             Supplier supplier, BigDecimal amount, BigDecimal balanceAfter,
             SupplierPaymentMode mode, String idempotencyKey, String reference,
             String notes, String actorUserId, Instant now) {
+        return payment(
+                supplier, amount, balanceAfter, BigDecimal.ZERO.setScale(2), mode,
+                idempotencyKey, reference, notes, actorUserId, now);
+    }
+
+    public static SupplierLedgerEntry payment(
+            Supplier supplier, BigDecimal amount, BigDecimal balanceAfter,
+            BigDecimal creditBalanceAfter, SupplierPaymentMode mode,
+            String idempotencyKey, String reference,
+            String notes, String actorUserId, Instant now) {
         return create(supplier, SupplierLedgerEntryType.PAYMENT, amount, balanceAfter,
-                null, idempotencyKey, mode, reference, notes, actorUserId, now);
+                creditBalanceAfter, null, null, idempotencyKey, mode, reference,
+                notes, actorUserId, now);
     }
 
     private static SupplierLedgerEntry create(
             Supplier supplier, SupplierLedgerEntryType type, BigDecimal amount,
-            BigDecimal balanceAfter, Purchase purchase, String idempotencyKey,
+            BigDecimal balanceAfter, BigDecimal creditBalanceAfter,
+            Purchase purchase, PurchaseReturn purchaseReturn, String idempotencyKey,
             SupplierPaymentMode mode, String reference, String notes,
             String actorUserId, Instant now) {
         SupplierLedgerEntry entry = new SupplierLedgerEntry();
@@ -101,7 +138,9 @@ public class SupplierLedgerEntry implements Persistable<String> {
         entry.entryType = type;
         entry.amount = amount;
         entry.balanceAfter = balanceAfter;
+        entry.creditBalanceAfter = creditBalanceAfter;
         entry.purchase = purchase;
+        entry.purchaseReturn = purchaseReturn;
         entry.idempotencyKey = idempotencyKey;
         entry.paymentMode = mode;
         entry.paymentReference = reference;
@@ -123,7 +162,9 @@ public class SupplierLedgerEntry implements Persistable<String> {
     public SupplierLedgerEntryType getEntryType() { return entryType; }
     public BigDecimal getAmount() { return amount; }
     public BigDecimal getBalanceAfter() { return balanceAfter; }
+    public BigDecimal getCreditBalanceAfter() { return creditBalanceAfter; }
     public Purchase getPurchase() { return purchase; }
+    public PurchaseReturn getPurchaseReturn() { return purchaseReturn; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public SupplierPaymentMode getPaymentMode() { return paymentMode; }
     public String getPaymentReference() { return paymentReference; }

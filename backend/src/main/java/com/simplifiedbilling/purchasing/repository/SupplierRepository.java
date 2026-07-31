@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface SupplierRepository extends JpaRepository<Supplier, String> {
 
@@ -24,7 +25,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, String> {
               and (:active is null or s.active = :active)
               and (:balanceStatus = 'ALL'
                    or (:balanceStatus = 'DUE' and b.outstandingAmount > 0)
-                   or (:balanceStatus = 'CLEAR' and b.outstandingAmount = 0))
+                   or (:balanceStatus = 'CREDIT' and b.creditAmount > 0)
+                   or (:balanceStatus = 'CLEAR' and b.outstandingAmount = 0 and b.creditAmount = 0))
             """,
             countQuery = """
             select count(s) from Supplier s join s.payableBalance b
@@ -33,7 +35,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, String> {
               and (:active is null or s.active = :active)
               and (:balanceStatus = 'ALL'
                    or (:balanceStatus = 'DUE' and b.outstandingAmount > 0)
-                   or (:balanceStatus = 'CLEAR' and b.outstandingAmount = 0))
+                   or (:balanceStatus = 'CREDIT' and b.creditAmount > 0)
+                   or (:balanceStatus = 'CLEAR' and b.outstandingAmount = 0 and b.creditAmount = 0))
             """)
     Page<Supplier> search(
             @Param("pattern") String pattern,
@@ -46,4 +49,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, String> {
     boolean existsByGstin(String gstin);
     boolean existsByGstinAndIdNot(String gstin, String id);
     long countByActiveTrue();
+
+    @EntityGraph(attributePaths = "payableBalance")
+    @Query("select s from Supplier s order by s.name")
+    List<Supplier> findAllDetailed();
 }
