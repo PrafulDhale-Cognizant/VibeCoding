@@ -54,7 +54,9 @@ textarea {
   .barcode-print-surface,
   .barcode-print-surface *,
   .receipt-print-surface,
-  .receipt-print-surface * {
+  .receipt-print-surface *,
+  .report-print-surface,
+  .report-print-surface * {
     visibility: visible !important;
   }
 
@@ -70,6 +72,80 @@ textarea {
     display: block !important;
     background: white;
     color: black;
+  }
+
+  .report-print-surface {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    width: 100%;
+    background: white;
+    color: black;
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+  }
+
+  .report-print-header {
+    margin-bottom: 8mm;
+    text-align: center;
+  }
+
+  .report-print-header h1 {
+    margin: 0;
+    font-size: 18pt;
+  }
+
+  .report-print-header h2 {
+    margin: 2mm 0;
+    font-size: 13pt;
+  }
+
+  .report-print-header p,
+  .report-print-footer {
+    color: #333;
+    font-size: 8.5pt;
+  }
+
+  .report-print-surface h3 {
+    margin: 7mm 0 2mm;
+    font-size: 11pt;
+  }
+
+  .report-summary-table,
+  .report-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .report-summary-table th,
+  .report-summary-table td,
+  .report-detail-table th,
+  .report-detail-table td {
+    border: 1px solid #555;
+    padding: 2mm;
+    text-align: right;
+  }
+
+  .report-summary-table th,
+  .report-detail-table th:first-child,
+  .report-detail-table td:first-child {
+    text-align: left;
+  }
+
+  .report-detail-table thead {
+    display: table-header-group;
+  }
+
+  .report-detail-table tr {
+    break-inside: avoid;
+  }
+
+  .report-detail-table.compact {
+    width: 70mm;
+  }
+
+  .report-print-footer {
+    margin-top: 8mm;
   }
 
   .barcode-print-page {
@@ -96,5 +172,9 @@ textarea {
 }
 
 .receipt-print-surface {
+  display: none;
+}
+
+.report-print-surface {
   display: none;
 }

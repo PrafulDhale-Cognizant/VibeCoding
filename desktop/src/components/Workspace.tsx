@@ -17,8 +17,9 @@ import {
 import { InventoryPanel } from "./inventory/InventoryPanel";
 import { PosPanel } from "./pos/PosPanel";
 import { KhataPanel } from "./khata/KhataPanel";
+import { ReportsPanel } from "./reports/ReportsPanel";
 
-type Section = "home" | "pos" | "khata" | "inventory" | "store" | "users" | "account";
+type Section = "home" | "pos" | "khata" | "inventory" | "reports" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -54,12 +55,16 @@ export function Workspace({
   const canUsePos = session.user.roles.some((role) =>
     role === "OWNER" || role === "ADMIN" || role === "CASHIER"
   );
+  const canViewReports = session.user.roles.some((role) =>
+    role === "OWNER" || role === "ADMIN" || role === "VIEWER"
+  );
 
   const navigation: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: "home", label: "Home", visible: true },
     { id: "pos", label: "Point of sale", visible: canUsePos },
     { id: "khata", label: "Khata", visible: canUsePos },
     { id: "inventory", label: "Inventory", visible: canReadInventory },
+    { id: "reports", label: "Dashboard & reports", visible: canViewReports },
     { id: "store", label: "Shop settings", visible: true },
     { id: "users", label: "Users & roles", visible: canAdminister },
     { id: "account", label: "My account", visible: true }
@@ -118,6 +123,8 @@ export function Workspace({
                     ? "Customer credit & settlements"
                   : section === "inventory"
                     ? "Catalog & stock control"
+                    : section === "reports"
+                      ? "Sales, margin & operational insights"
                     : "Store setup & authentication"}
               </p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight">
@@ -136,6 +143,9 @@ export function Workspace({
           {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}
           {section === "inventory" && canReadInventory && (
             <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />
+          )}
+          {section === "reports" && canViewReports && (
+            <ReportsPanel accessToken={session.accessToken} />
           )}
           {section === "store" && (
             <StorePanel accessToken={session.accessToken} canEdit={canAdminister} />

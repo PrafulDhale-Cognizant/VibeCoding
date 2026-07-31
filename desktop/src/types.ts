@@ -333,3 +333,62 @@ export interface KhataSettlementResponse {
   occurredAt: string;
   idempotentReplay: boolean;
 }
+
+export interface SalesSummaryResponse {
+  billCount: number;
+  subtotalAmount: number;
+  discountAmount: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  totalTax: number;
+  roundOffAmount: number;
+  totalSales: number;
+  snapshotCost: number;
+  grossMargin: number;
+  paymentTotals: Record<PaymentMode, number>;
+}
+
+export interface DailySalesResponse {
+  businessDate: string;
+  billCount: number;
+  totalSales: number;
+  snapshotCost: number;
+  grossMargin: number;
+}
+
+export interface ReportStockAlertResponse {
+  productId: string;
+  name: string;
+  sku: string;
+  unit: ProductUnit;
+  stockQuantity: number;
+  minimumStockLevel: number;
+  suggestedReorderQuantity: number;
+}
+
+export interface DashboardReportResponse {
+  businessDate: string;
+  timezone: string;
+  shopName: string;
+  today: SalesSummaryResponse;
+  inventory: {
+    lowStockCount: number;
+    outOfStockCount: number;
+    lowStockItems: ReportStockAlertResponse[];
+    outOfStockItems: ReportStockAlertResponse[];
+  };
+  credit: KhataSummaryResponse;
+  generatedAt: string;
+}
+
+export interface SalesReportResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  shopName: string;
+  summary: SalesSummaryResponse;
+  dailySales: DailySalesResponse[];
+  generatedAt: string;
+}

@@ -4,7 +4,8 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication**, **Inventory Management**, **Point of Sale**, and **Khata** modules:
+Authentication**, **Inventory Management**, **Point of Sale**, **Khata**, and **Dashboard &
+Reports** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -22,12 +23,15 @@ Authentication**, **Inventory Management**, **Point of Sale**, and **Khata** mod
 - customer accounts, append-only credit statements and locked outstanding balances
 - atomic Udhaar checkout plus idempotent full or partial settlements
 - Khata receivable summary, customer search, maintenance and statement workspace
-- React 19 and Tailwind CSS setup, login, POS, inventory, settings, users, and account screens
+- store-timezone-aware sales, GST, payment-mode and gross-margin reporting
+- daily KPI dashboard with inventory alerts and Khata exposure
+- printable A4 period reports and UTF-8 CSV export
+- React 19 and Tailwind CSS setup, login, POS, inventory, Khata, reports, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Purchases, dashboard reports and backup/restore remain separate implementation milestones.
+Purchases and production-grade backup/restore remain separate implementation milestones.
 
 ## Documentation
 
@@ -288,8 +292,8 @@ generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 99.19% | 90% |
-| Branches | 88.14% | 80% |
+| Lines | 99.26% | 90% |
+| Branches | 88.22% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -521,6 +525,34 @@ balance version to prevent operators from settling a stale balance.
 The desktop Khata workspace provides receivable totals, customer and due counters, name/phone
 search, balance filters, account maintenance, statement history and partial/full settlement.
 
+## Dashboard and reports API
+
+Dashboard and report endpoints are available to Owner, Admin and Viewer roles. Cashier and
+Inventory Manager roles do not receive profit or store-wide revenue data.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/reports/dashboard` | Return today's sales KPIs, payments, inventory alerts and Khata exposure |
+| `GET` | `/api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` | Return an inclusive daily sales, tax, cost and gross-margin report |
+
+Business-day boundaries are calculated in the timezone saved in shop settings and converted to
+UTC for indexed invoice queries. Report periods are inclusive and limited to 366 days. The POS
+module owns the optimized invoice/payment query and exposes immutable report snapshots through a
+service interface; the Reports module does not access another module's repository.
+
+Gross margin is an operational estimate calculated as completed invoice sales minus the immutable
+purchase-cost snapshots captured on invoice lines. It is not a full accounting profit-and-loss
+statement because it does not include overheads, returns or other expenses.
+
+The desktop Dashboard & Reports workspace provides:
+
+- today's sales, completed bill count, gross margin and Khata outstanding
+- Cash, UPI, Card and Udhaar totals
+- low-stock and out-of-stock counters with priority items
+- inclusive date filters and daily sales/margin activity
+- operating-system A4 printing through the restricted Electron bridge
+- UTF-8 CSV export for spreadsheet analysis
+
 ## Backend module conventions
 
 Business modules use package-by-feature:
@@ -622,11 +654,14 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-Store setup, authentication, inventory, POS and Khata are complete. The next core slice is
-**Dashboard & Reports**:
+Store setup, authentication, inventory, POS, Khata, and Dashboard & Reports are complete. The next
+business slice is **Purchase & Supplier Management**:
 
-1. today's sales, bill count, revenue and payment-mode totals
-2. gross profit using immutable invoice purchase-cost snapshots
-3. date-range sales, tax and profit summaries
-4. low-stock/out-of-stock dashboard widgets
-5. printable/exportable daily and period reports
+1. supplier accounts and contact maintenance
+2. purchase receiving with supplier-invoice references
+3. locked inventory increases and immutable purchase-cost history
+4. supplier payment and outstanding tracking
+5. purchase returns and supplier-wise reports
+
+Encrypted backup/restore, managed local database lifecycle and installer hardening remain part of
+the desktop-operations milestone before production deployment.

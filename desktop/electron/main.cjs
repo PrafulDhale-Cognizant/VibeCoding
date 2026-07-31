@@ -273,6 +273,23 @@ if (!hasSingleInstanceLock) {
         );
       });
     });
+    ipcMain.handle("billing:print:report", (event) => {
+      assertTrustedIpcSender(event);
+      return new Promise((resolve, reject) => {
+        event.sender.print(
+          {
+            silent: false,
+            printBackground: false,
+            margins: { marginType: "default" },
+            pageSize: "A4"
+          },
+          (success, failureReason) => {
+            if (success) resolve();
+            else reject(new Error(failureReason || "Report printing was cancelled or failed."));
+          }
+        );
+      });
+    });
 
     startBackendIfConfigured();
     createWindow();

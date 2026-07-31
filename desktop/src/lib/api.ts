@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   CategoryResponse,
+  DashboardReportResponse,
   InitialSetupRequest,
   InventoryPage,
   KhataBalanceStatus,
@@ -14,6 +15,7 @@ import type {
   ProductResponse,
   ProductSort,
   ProductUpdateRequest,
+  SalesReportResponse,
   PosInvoiceResponse,
   PosPaymentRequest,
   PosQuoteRequest,
@@ -383,5 +385,15 @@ export const api = {
       body: JSON.stringify(body)
     },
     accessToken
-  )
+  ),
+  getDashboardReport: (accessToken: string) =>
+    request<DashboardReportResponse>("/api/v1/reports/dashboard", {}, accessToken),
+  getSalesReport: (accessToken: string, from: string, to: string) => {
+    const parameters = new URLSearchParams({ from, to });
+    return request<SalesReportResponse>(
+      `/api/v1/reports/sales?${parameters.toString()}`,
+      {},
+      accessToken
+    );
+  }
 };
