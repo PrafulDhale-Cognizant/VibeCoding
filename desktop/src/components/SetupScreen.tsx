@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { InitialSetupRequest, StoreProfile } from "../types";
 import { ErrorNotice, Field, SelectInput, TextInput } from "./FormControls";
+import { ThemeSettings } from "./ThemeSettings";
 
 const initialStore: StoreProfile = {
   shopName: "",
@@ -68,7 +69,7 @@ export function SetupScreen({
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-8 py-10">
+    <div className="md-app min-h-screen px-8 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -80,9 +81,10 @@ export function SetupScreen({
               This one-time setup creates the local shop profile and first owner account.
             </p>
           </div>
-          <span className="rounded-full bg-indigo-100 px-4 py-2 text-sm font-semibold text-indigo-800">
-            Step 1 of 1
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-indigo-100 px-4 py-2 text-sm font-semibold text-indigo-800">Step 1 of 1</span>
+            <ThemeSettings compact />
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-6">
@@ -332,7 +334,7 @@ export function SetupScreen({
           <div className="flex justify-end pb-10">
             <button
               disabled={submitting}
-              className="rounded-xl bg-indigo-700 px-7 py-3 text-sm font-bold text-white shadow-sm hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="md-button-filled px-7 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "Creating secure workspace…" : "Complete setup"}
             </button>

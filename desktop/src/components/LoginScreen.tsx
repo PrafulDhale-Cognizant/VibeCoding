@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ErrorNotice, Field, TextInput } from "./FormControls";
+import { ThemeSettings } from "./ThemeSettings";
+import { AppIcon } from "./AppIcon";
 
 export function LoginScreen({
   shopName,
@@ -27,31 +29,36 @@ export function LoginScreen({
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-[1.15fr_0.85fr] bg-slate-950">
-      <section className="flex flex-col justify-between bg-indigo-700 p-12 text-white">
+    <div className="md-auth-layout">
+      <div className="md-floating-theme"><ThemeSettings compact /></div>
+      <section className="md-auth-hero">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-200">
-            Simplified Billing
-          </p>
-          <h1 className="mt-6 max-w-xl text-5xl font-bold leading-tight tracking-tight">
-            Fast billing, dependable stock, fully local.
+          <div className="md-auth-brand"><span>SB</span><strong>Simplified Billing</strong></div>
+          <p className="md-overline mt-16">Retail workspace</p>
+          <h1>
+            Fast at the counter.<br />Calm everywhere else.
           </h1>
-          <p className="mt-5 max-w-lg text-lg leading-8 text-indigo-100">
+          <p className="md-auth-copy">
             Your shop data stays on this computer and remains available without an internet
             connection.
           </p>
+          <div className="md-auth-features">
+            <span><AppIcon name="pos" />Scanner-first billing</span>
+            <span><AppIcon name="inventory" />Live stock control</span>
+            <span><AppIcon name="reports" />Clear business insights</span>
+          </div>
         </div>
-        <p className="text-sm text-indigo-200">Local service secured with encrypted sessions</p>
+        <p className="md-auth-footnote"><i /> Local service · Encrypted session · Works offline</p>
       </section>
 
-      <section className="flex items-center justify-center bg-slate-50 p-12">
+      <section className="md-auth-form-side">
         <form
           onSubmit={submit}
-          className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-950/5"
+          className="md-auth-card"
         >
-          <p className="text-sm font-semibold text-indigo-700">Welcome back</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">{shopName ?? "Your shop"}</h2>
-          <p className="mt-2 text-sm text-slate-500">Sign in to open the billing workspace.</p>
+          <p className="md-overline">Welcome back</p>
+          <h2>{shopName ?? "Your shop"}</h2>
+          <p className="md-auth-subtitle">Sign in to open your local billing workspace.</p>
 
           <div className="mt-8 space-y-5">
             <Field label="Username">
@@ -75,11 +82,12 @@ export function LoginScreen({
             {error && <ErrorNotice message={error} />}
             <button
               disabled={submitting}
-              className="w-full rounded-xl bg-indigo-700 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60"
+              className="md-button-filled mt-2 w-full disabled:opacity-60"
             >
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </div>
+          <p className="md-auth-help">Use the local account created for this shop.</p>
         </form>
       </section>
     </div>

@@ -18,6 +18,8 @@ import { InventoryPanel } from "./inventory/InventoryPanel";
 import { PosPanel } from "./pos/PosPanel";
 import { KhataPanel } from "./khata/KhataPanel";
 import { ReportsPanel } from "./reports/ReportsPanel";
+import { AppIcon, type AppIconName } from "./AppIcon";
+import { ThemeSettings } from "./ThemeSettings";
 
 type Section = "home" | "pos" | "khata" | "inventory" | "reports" | "store" | "users" | "account";
 
@@ -59,28 +61,37 @@ export function Workspace({
     role === "OWNER" || role === "ADMIN" || role === "VIEWER"
   );
 
-  const navigation: Array<{ id: Section; label: string; visible: boolean }> = [
-    { id: "home", label: "Home", visible: true },
-    { id: "pos", label: "Point of sale", visible: canUsePos },
-    { id: "khata", label: "Khata", visible: canUsePos },
-    { id: "inventory", label: "Inventory", visible: canReadInventory },
-    { id: "reports", label: "Dashboard & reports", visible: canViewReports },
-    { id: "store", label: "Shop settings", visible: true },
-    { id: "users", label: "Users & roles", visible: canAdminister },
-    { id: "account", label: "My account", visible: true }
+  const navigation: Array<{ id: Section; label: string; visible: boolean; icon: AppIconName }> = [
+    { id: "home", label: "Home", visible: true, icon: "home" },
+    { id: "pos", label: "Point of sale", visible: canUsePos, icon: "pos" },
+    { id: "khata", label: "Khata", visible: canUsePos, icon: "khata" },
+    { id: "inventory", label: "Inventory", visible: canReadInventory, icon: "inventory" },
+    { id: "reports", label: "Dashboard & reports", visible: canViewReports, icon: "reports" },
+    { id: "store", label: "Shop settings", visible: true, icon: "store" },
+    { id: "users", label: "Users & roles", visible: canAdminister, icon: "users" },
+    { id: "account", label: "My account", visible: true, icon: "account" }
   ];
 
+  const activeItem = navigation.find((item) => item.id === section);
+  const initials = session.user.displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <aside className="flex w-64 shrink-0 flex-col bg-slate-950 px-4 py-6 text-white">
-        <div className="px-3">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">
-            Simplified Billing
-          </p>
-          <h1 className="mt-2 text-lg font-bold">Local workspace</h1>
+    <div className="md-app flex min-h-screen">
+      <aside className="md-drawer">
+        <div className="md-brand">
+          <span className="md-brand-mark">SB</span>
+          <div className="min-w-0">
+            <strong>Simplified Billing</strong>
+            <span>Offline retail workspace</span>
+          </div>
         </div>
 
-        <nav className="mt-8 space-y-1">
+        <nav className="md-nav" aria-label="Main navigation">
+          <p className="md-nav-label">Workspace</p>
           {navigation
             .filter((item) => item.visible)
             .map((item) => (
@@ -88,35 +99,42 @@ export function Workspace({
                 key={item.id}
                 type="button"
                 onClick={() => setSection(item.id)}
-                className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition ${
-                  section === item.id
-                    ? "bg-indigo-600 text-white"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
+                className={`md-nav-item ${section === item.id ? "selected" : ""}`}
+                aria-current={section === item.id ? "page" : undefined}
               >
+                <AppIcon name={item.icon} />
                 {item.label}
               </button>
             ))}
         </nav>
 
-        <div className="mt-auto border-t border-slate-800 px-3 pt-5">
-          <p className="truncate text-sm font-semibold">{session.user.displayName}</p>
-          <p className="mt-1 truncate text-xs text-slate-400">@{session.user.username}</p>
-          <button
-            type="button"
-            onClick={() => void onLogout()}
-            className="mt-4 text-sm font-semibold text-red-300 hover:text-red-200"
-          >
-            Sign out
-          </button>
+        <div className="md-drawer-footer">
+          <ThemeSettings />
+          <div className="md-user-card">
+            <span className="md-avatar">{initials || "U"}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold">{session.user.displayName}</p>
+              <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                {roleLabels[session.user.roles[0]] ?? `@${session.user.username}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void onLogout()}
+              className="md-icon-button"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <AppIcon name="logout" className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="border-b border-slate-200 bg-white px-8 py-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-500">
+        <header className="md-topbar">
+          <div>
+            <p>
                 {section === "pos"
                   ? "Scanner-first checkout"
                   : section === "khata"
@@ -126,18 +144,16 @@ export function Workspace({
                     : section === "reports"
                       ? "Sales, margin & operational insights"
                     : "Store setup & authentication"}
-              </p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight">
-                {navigation.find((item) => item.id === section)?.label}
-              </h2>
-            </div>
-            <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
-              Offline service ready
-            </span>
+            </p>
+            <h2>{activeItem?.label}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="md-status-chip">Offline service ready</span>
+            <ThemeSettings compact />
           </div>
         </header>
 
-        <main className={section === "pos" ? "p-5" : "p-8"}>
+        <main className={`md-content ${section === "pos" ? "p-5" : "p-8"}`}>
           {section === "home" && <HomePanel accessToken={session.accessToken} user={session.user} />}
           {section === "pos" && canUsePos && <PosPanel accessToken={session.accessToken} />}
           {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}

@@ -5,6 +5,7 @@ import { Workspace } from "./components/Workspace";
 import { api } from "./lib/api";
 import { clearRefreshToken, loadRefreshToken, storeRefreshToken } from "./lib/session";
 import type { AuthResponse, InitialSetupRequest } from "./types";
+import { ThemeSettings } from "./components/ThemeSettings";
 
 type AppPhase = "booting" | "setup" | "login" | "authenticated" | "unavailable";
 
@@ -107,10 +108,11 @@ export default function App() {
 
   if (phase === "booting") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+      <div className="md-app flex min-h-screen items-center justify-center">
+        <div className="md-floating-theme"><ThemeSettings compact /></div>
         <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-indigo-300 border-t-white" />
-          <p className="mt-5 text-sm font-semibold text-slate-300">Opening local workspace…</p>
+          <div className="md-progress mx-auto" />
+          <p className="mt-5 text-sm font-semibold text-slate-500">Opening local workspace…</p>
         </div>
       </div>
     );
@@ -118,13 +120,14 @@ export default function App() {
 
   if (phase === "unavailable") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-8">
-        <section className="max-w-lg rounded-2xl border border-red-200 bg-white p-8 shadow-sm">
+      <div className="md-app flex min-h-screen items-center justify-center p-8">
+        <div className="md-floating-theme"><ThemeSettings compact /></div>
+        <section className="md-card max-w-lg p-8">
           <p className="text-sm font-bold uppercase tracking-wider text-red-700">Service unavailable</p>
           <h1 className="mt-2 text-2xl font-bold">The local backend is not ready</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">{startupError}</p>
           <p className="mt-3 text-sm text-slate-600">Start MySQL and Spring Boot, then reopen the application.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-800">
+          <button type="button" onClick={() => window.location.reload()} className="md-button-filled mt-6">
             Retry
           </button>
         </section>

@@ -26,6 +26,8 @@ Reports** modules:
 - store-timezone-aware sales, GST, payment-mode and gross-margin reporting
 - daily KPI dashboard with inventory alerts and Khata exposure
 - printable A4 period reports and UTF-8 CSV export
+- Material-inspired desktop design with Light, Dark and System appearance modes
+- five locally persisted color palettes: Ocean, Teal, Rose, Amber and Violet
 - React 19 and Tailwind CSS setup, login, POS, inventory, Khata, reports, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
@@ -552,6 +554,24 @@ The desktop Dashboard & Reports workspace provides:
 - inclusive date filters and daily sales/margin activity
 - operating-system A4 printing through the restricted Electron bridge
 - UTF-8 CSV export for spreadsheet analysis
+
+## Desktop appearance and themes
+
+The renderer uses a shared Material-inspired semantic design system so authentication, setup,
+POS, Inventory, Khata, Reports and administrative screens respond consistently to appearance
+changes. Open **Appearance** from the navigation drawer or use the palette button in the top app
+bar.
+
+Available appearance modes are:
+
+- **Light** for bright shop environments
+- **Dark** for reduced glare
+- **System** to follow the current Windows appearance automatically
+
+Available color palettes are **Ocean**, **Teal**, **Rose**, **Amber** and **Violet**. The selected
+mode and palette are stored locally in the renderer and restored on the next application launch.
+No internet connection or backend request is required. Thermal receipts, barcode labels and A4
+reports remain black-on-white regardless of the application theme.
 
 ## Backend module conventions
 
