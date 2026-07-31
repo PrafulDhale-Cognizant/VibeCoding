@@ -11,6 +11,7 @@ interface BillingDesktopBridge {
   storeRefreshToken: (rawToken: string) => Promise<void>;
   loadRefreshToken: () => Promise<string | null>;
   clearRefreshToken: () => Promise<void>;
+  printBarcodeLabels: (options: { widthMm: number; heightMm: number }) => Promise<void>;
 }
 
 interface Window {

@@ -34,7 +34,53 @@ textarea {
 }
 
 @media print {
+  @page {
+    margin: 0;
+  }
+
+  html,
   body {
     background: #fff;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .barcode-print-surface,
+  .barcode-print-surface * {
+    visibility: visible !important;
+  }
+
+  .barcode-print-surface {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+  }
+
+  .barcode-print-page {
+    display: block;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .barcode-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .barcode-label {
+    overflow: hidden;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+.barcode-print-surface {
+  display: none;
 }

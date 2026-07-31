@@ -223,6 +223,35 @@ if (!hasSingleInstanceLock) {
       assertTrustedIpcSender(event);
       clearRefreshToken();
     });
+    ipcMain.handle("billing:print:barcode-labels", (event, options) => {
+      assertTrustedIpcSender(event);
+      const widthMm = Number(options?.widthMm);
+      const heightMm = Number(options?.heightMm);
+      if (!Number.isFinite(widthMm) || !Number.isFinite(heightMm)
+          || widthMm < 20 || widthMm > 100 || heightMm < 15 || heightMm > 100) {
+        throw new Error("Invalid barcode label dimensions.");
+      }
+      return new Promise((resolve, reject) => {
+        event.sender.print(
+          {
+            silent: false,
+            printBackground: false,
+            margins: { marginType: "none" },
+            pageSize: {
+              width: Math.round(widthMm * 1000),
+              height: Math.round(heightMm * 1000)
+            }
+          },
+          (success, failureReason) => {
+            if (success) {
+              resolve();
+            } else {
+              reject(new Error(failureReason || "Barcode label printing was cancelled or failed."));
+            }
+          }
+        );
+      });
+    });
 
     startBackendIfConfigured();
     createWindow();

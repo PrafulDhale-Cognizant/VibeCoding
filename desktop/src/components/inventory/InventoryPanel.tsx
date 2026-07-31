@@ -10,6 +10,7 @@ import type {
 } from "../../types";
 import { ErrorNotice, SelectInput, SuccessNotice, TextInput } from "../FormControls";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { BarcodeLabelModal } from "./BarcodeLabelModal";
 import { ProductEditorModal } from "./ProductEditorModal";
 import { StockLedgerModal } from "./StockLedgerModal";
 
@@ -65,6 +66,7 @@ export function InventoryPanel({
   const [showCategories, setShowCategories] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductResponse | null | undefined>(undefined);
   const [stockProduct, setStockProduct] = useState<ProductResponse | null>(null);
+  const [labelProduct, setLabelProduct] = useState<ProductResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -311,6 +313,7 @@ export function InventoryPanel({
                   canWrite={canWrite}
                   onEdit={() => setEditingProduct(product)}
                   onStock={() => setStockProduct(product)}
+                  onPrint={() => setLabelProduct(product)}
                 />
               ))}
             </tbody>
@@ -365,8 +368,10 @@ export function InventoryPanel({
           units={units}
           onClose={() => setEditingProduct(undefined)}
           onSaved={(_saved, message) => {
+            const created = editingProduct === null;
             setEditingProduct(undefined);
             refresh(message);
+            if (created) setLabelProduct(_saved);
           }}
         />
       )}
@@ -382,6 +387,13 @@ export function InventoryPanel({
           }}
         />
       )}
+      {labelProduct && (
+        <BarcodeLabelModal
+          accessToken={accessToken}
+          product={labelProduct}
+          onClose={() => setLabelProduct(null)}
+        />
+      )}
     </div>
   );
 }
@@ -390,12 +402,14 @@ function ProductRow({
   product,
   canWrite,
   onEdit,
-  onStock
+  onStock,
+  onPrint
 }: {
   product: ProductResponse;
   canWrite: boolean;
   onEdit: () => void;
   onStock: () => void;
+  onPrint: () => void;
 }) {
   return (
     <tr className={`${product.active ? "bg-white" : "bg-slate-50 opacity-70"} hover:bg-indigo-50/30`}>
@@ -431,9 +445,14 @@ function ProductRow({
             {canWrite ? "Adjust / ledger" : "View ledger"}
           </button>
           {canWrite && (
-            <button type="button" onClick={onEdit} className="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-800">
-              Edit
-            </button>
+            <>
+              <button type="button" onClick={onPrint} className="rounded-lg border border-indigo-300 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">
+                Print label
+              </button>
+              <button type="button" onClick={onEdit} className="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-800">
+                Edit
+              </button>
+            </>
           )}
         </div>
       </td>

@@ -439,6 +439,21 @@ box and dozen reject fractional stock; kilogram, gram, litre and millilitre perm
 be changed through the product update endpoint: every change must use the locked adjustment service
 and create a ledger transaction.
 
+### Barcode label printing
+
+After a product is created, the desktop application opens the barcode-label dialog automatically.
+Existing products also provide a `Print label` action in the product table. The dialog supports:
+
+- 38 x 25 mm, 50 x 30 mm, 58 x 40 mm and 80 x 50 mm label profiles
+- 1-100 copies per print job
+- optional shop name and selling price
+- scanner-compatible Code 128 vector barcodes with human-readable values
+- custom paper dimensions passed through the restricted Electron printing bridge
+
+Printing opens the operating-system dialog so the operator can select the installed barcode or
+thermal printer. Configure the printer driver for 100% scale, zero margins and the same paper size
+selected in the application.
+
 ## Backend module conventions
 
 Business modules use package-by-feature:
