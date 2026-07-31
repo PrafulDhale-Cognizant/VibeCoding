@@ -15,6 +15,9 @@ import type {
   ProductResponse,
   ProductSort,
   ProductUpdateRequest,
+  PurchaseResponse,
+  PurchaseSummaryResponse,
+  PurchasingSummaryResponse,
   SalesReportResponse,
   PosInvoiceResponse,
   PosPaymentRequest,
@@ -25,6 +28,11 @@ import type {
   StockStatus,
   StockTransactionResponse,
   SettlementMode,
+  SupplierBalanceStatus,
+  SupplierLedgerResponse,
+  SupplierPaymentMode,
+  SupplierPaymentResponse,
+  SupplierResponse,
   StoreDetails,
   StoreProfile,
   UnitResponse,
@@ -395,5 +403,87 @@ export const api = {
       {},
       accessToken
     );
-  }
+  },
+  getPurchasingSummary: (accessToken: string) =>
+    request<PurchasingSummaryResponse>("/api/v1/purchasing/summary", {}, accessToken),
+  searchSuppliers: (
+    accessToken: string,
+    filters: { query?: string; active?: boolean | null; balanceStatus?: SupplierBalanceStatus; page?: number; size?: number }
+  ) => {
+    const parameters = new URLSearchParams();
+    if (filters.query?.trim()) parameters.set("query", filters.query.trim());
+    if (filters.active !== null && filters.active !== undefined) parameters.set("active", String(filters.active));
+    parameters.set("balanceStatus", filters.balanceStatus ?? "ALL");
+    parameters.set("page", String(filters.page ?? 0));
+    parameters.set("size", String(filters.size ?? 25));
+    return request<InventoryPage<SupplierResponse>>(
+      `/api/v1/purchasing/suppliers?${parameters.toString()}`, {}, accessToken
+    );
+  },
+  createSupplier: (
+    accessToken: string,
+    body: { name: string; phone: string; gstin: string; address: string; notes: string }
+  ) => request<SupplierResponse>(
+    "/api/v1/purchasing/suppliers", { method: "POST", body: JSON.stringify(body) }, accessToken
+  ),
+  updateSupplier: (
+    accessToken: string,
+    supplierId: string,
+    body: { name: string; phone: string; gstin: string; address: string; notes: string; active: boolean; version: number }
+  ) => request<SupplierResponse>(
+    `/api/v1/purchasing/suppliers/${supplierId}`,
+    { method: "PUT", body: JSON.stringify(body) }, accessToken
+  ),
+  getSupplier: (accessToken: string, supplierId: string) =>
+    request<SupplierResponse>(`/api/v1/purchasing/suppliers/${supplierId}`, {}, accessToken),
+  getSupplierStatement: (accessToken: string, supplierId: string, page = 0, size = 50) =>
+    request<InventoryPage<SupplierLedgerResponse>>(
+      `/api/v1/purchasing/suppliers/${supplierId}/statement?page=${page}&size=${size}`, {}, accessToken
+    ),
+  paySupplier: (
+    accessToken: string,
+    supplierId: string,
+    idempotencyKey: string,
+    body: { amount: number; paymentMode: SupplierPaymentMode; reference: string; notes: string; balanceVersion: number }
+  ) => request<SupplierPaymentResponse>(
+    `/api/v1/purchasing/suppliers/${supplierId}/payments`,
+    { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body) },
+    accessToken
+  ),
+  searchPurchases: (
+    accessToken: string,
+    filters: { query?: string; supplierId?: string; from?: string; to?: string; page?: number; size?: number }
+  ) => {
+    const parameters = new URLSearchParams();
+    if (filters.query?.trim()) parameters.set("query", filters.query.trim());
+    if (filters.supplierId) parameters.set("supplierId", filters.supplierId);
+    if (filters.from) parameters.set("from", filters.from);
+    if (filters.to) parameters.set("to", filters.to);
+    parameters.set("page", String(filters.page ?? 0));
+    parameters.set("size", String(filters.size ?? 25));
+    return request<InventoryPage<PurchaseSummaryResponse>>(
+      `/api/v1/purchasing/purchases?${parameters.toString()}`, {}, accessToken
+    );
+  },
+  receivePurchase: (
+    accessToken: string,
+    idempotencyKey: string,
+    body: {
+      supplierId: string;
+      supplierInvoiceNumber: string;
+      invoiceDate: string;
+      pricesIncludeTax: boolean;
+      items: Array<{ productId: string; quantity: number; unitCost: number }>;
+      amountPaid: number;
+      paymentMode: SupplierPaymentMode | null;
+      paymentReference: string;
+      notes: string;
+    }
+  ) => request<PurchaseResponse>(
+    "/api/v1/purchasing/purchases",
+    { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body) },
+    accessToken
+  ),
+  getPurchase: (accessToken: string, purchaseId: string) =>
+    request<PurchaseResponse>(`/api/v1/purchasing/purchases/${purchaseId}`, {}, accessToken)
 };

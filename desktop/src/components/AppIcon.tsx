@@ -2,7 +2,7 @@ import type { SVGProps } from "react";
 
 export type AppIconName =
   | "home" | "pos" | "khata" | "inventory" | "reports" | "store" | "users"
-  | "account" | "palette" | "sun" | "moon" | "system" | "logout" | "check" | "close";
+  | "account" | "purchases" | "palette" | "sun" | "moon" | "system" | "logout" | "check" | "close";
 
 const paths: Record<AppIconName, string> = {
   home: "M3 10.8 12 3l9 7.8v9.7a.5.5 0 0 1-.5.5H15v-6H9v6H3.5a.5.5 0 0 1-.5-.5v-9.7Z",
@@ -13,6 +13,7 @@ const paths: Record<AppIconName, string> = {
   store: "M4 10v10h16V10M3 4h18l-2 5H5L3 4Zm5 9h3v7H8v-7Zm6 0h3v3h-3v-3Z",
   users: "M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 21v-3c0-3.3 3.1-5 7-5s7 1.7 7 5v3H1Zm15 0v-3c0-1.5-.5-2.8-1.5-3.8.5-.1 1-.2 1.5-.2 3.4 0 6 1.5 6 4.5V21h-6Z",
   account: "M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM3 22v-2c0-4 4-6 9-6s9 2 9 6v2H3Z",
+  purchases: "M4 5h16v4H4V5Zm1 6h14v9H5v-9Zm3 2v2h5v-2H8Zm8 0h1v4h-1v-4ZM8 17h5v1H8v-1Z",
   palette: "M12 3a9 9 0 1 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h4a5 5 0 0 0 5-5c0-3.3-4-6-9-6ZM7 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm4-2a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm5 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM6 14a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z",
   sun: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0-5v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1",
   moon: "M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z",

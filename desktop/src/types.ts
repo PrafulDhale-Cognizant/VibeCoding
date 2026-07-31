@@ -88,6 +88,7 @@ export type StockAdjustmentReasonCode =
 export type StockReasonCode =
   | StockAdjustmentReasonCode
   | "OPENING_STOCK"
+  | "PURCHASE"
   | "SALE"
   | "SALE_RETURN";
 
@@ -391,4 +392,92 @@ export interface SalesReportResponse {
   summary: SalesSummaryResponse;
   dailySales: DailySalesResponse[];
   generatedAt: string;
+}
+
+export type SupplierBalanceStatus = "ALL" | "DUE" | "CLEAR";
+export type SupplierPaymentMode = "CASH" | "UPI" | "CARD" | "BANK_TRANSFER";
+
+export interface SupplierResponse {
+  id: string;
+  name: string;
+  phone: string;
+  gstin: string | null;
+  address: string | null;
+  notes: string | null;
+  active: boolean;
+  outstandingAmount: number;
+  version: number;
+  balanceVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchasingSummaryResponse {
+  totalOutstanding: number;
+  suppliersWithDue: number;
+  activeSuppliers: number;
+}
+
+export interface SupplierLedgerResponse {
+  id: string;
+  supplierId: string;
+  entryType: "PURCHASE_DUE" | "PAYMENT";
+  amount: number;
+  balanceAfter: number;
+  purchaseId: string | null;
+  purchaseNumber: string | null;
+  paymentMode: SupplierPaymentMode | null;
+  paymentReference: string | null;
+  notes: string | null;
+  actorUserId: string;
+  occurredAt: string;
+}
+
+export interface PurchaseSummaryResponse {
+  id: string;
+  purchaseNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierInvoiceNumber: string | null;
+  invoiceDate: string;
+  status: "RECEIVED";
+  totalAmount: number;
+  amountPaid: number;
+  outstandingAdded: number;
+  receivedAt: string;
+}
+
+export interface PurchaseLineResponse {
+  lineNumber: number;
+  productId: string;
+  productName: string;
+  unit: ProductUnit;
+  quantity: number;
+  unitCost: number;
+  gstRate: number;
+  taxableAmount: number;
+  taxAmount: number;
+  lineTotal: number;
+}
+
+export interface PurchaseResponse extends PurchaseSummaryResponse {
+  pricesIncludeTax: boolean;
+  subtotalAmount: number;
+  taxAmount: number;
+  paymentMode: SupplierPaymentMode | null;
+  paymentReference: string | null;
+  notes: string | null;
+  actorUserId: string;
+  items: PurchaseLineResponse[];
+  idempotentReplay: boolean;
+}
+
+export interface SupplierPaymentResponse {
+  entryId: string;
+  supplierId: string;
+  amount: number;
+  balanceAfter: number;
+  paymentMode: SupplierPaymentMode;
+  occurredAt: string;
+  idempotentReplay: boolean;
 }

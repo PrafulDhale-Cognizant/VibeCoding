@@ -24,3 +24,11 @@ CREATE TABLE IF NOT EXISTS invoice_sequences (
 
 MERGE INTO invoice_sequences (sequence_name, next_value)
 KEY (sequence_name) VALUES ('INVOICE', 1);
+
+CREATE TABLE IF NOT EXISTS purchase_sequences (
+    sequence_name VARCHAR(32) PRIMARY KEY,
+    next_value BIGINT NOT NULL
+);
+
+MERGE INTO purchase_sequences (sequence_name, next_value)
+KEY (sequence_name) VALUES ('PURCHASE', 1);

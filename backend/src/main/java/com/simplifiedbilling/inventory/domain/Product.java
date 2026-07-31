@@ -118,6 +118,14 @@ public class Product implements Persistable<String> {
         barcode.update(barcodeValue, internalBarcode);
     }
 
+    public void updatePurchaseCost(BigDecimal cost, Instant now) {
+        if (cost == null || cost.signum() < 0) {
+            throw new IllegalArgumentException("Purchase cost cannot be negative.");
+        }
+        purchaseCost = cost;
+        updatedAt = now;
+    }
+
     private void apply(ProductData data, Category category, Instant now) {
         name = data.name();
         receiptName = data.receiptName();

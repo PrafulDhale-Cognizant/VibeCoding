@@ -4,8 +4,8 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication**, **Inventory Management**, **Point of Sale**, **Khata**, and **Dashboard &
-Reports** modules:
+Authentication**, **Inventory Management**, **Point of Sale**, **Khata**, **Dashboard & Reports**,
+and **Purchase & Supplier Management** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -26,14 +26,18 @@ Reports** modules:
 - store-timezone-aware sales, GST, payment-mode and gross-margin reporting
 - daily KPI dashboard with inventory alerts and Khata exposure
 - printable A4 period reports and UTF-8 CSV export
+- supplier contacts, payable balances, statements and idempotent supplier payments
+- purchase receiving with GST-aware immutable line snapshots and supplier invoice references
+- pessimistically locked stock increases and automatic latest-purchase-cost updates
+- purchase and supplier desktop workspaces with due filters and detailed receiving history
 - Material-inspired desktop design with Light, Dark and System appearance modes
 - five locally persisted color palettes: Ocean, Teal, Rose, Amber and Violet
-- React 19 and Tailwind CSS setup, login, POS, inventory, Khata, reports, settings, users, and account screens
+- React 19 and Tailwind CSS setup, login, POS, inventory, purchasing, Khata, reports, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Purchases and production-grade backup/restore remain separate implementation milestones.
+Purchase returns and production-grade backup/restore remain separate implementation milestones.
 
 ## Documentation
 
@@ -289,13 +293,13 @@ Run release verification with the mandatory coverage gate:
 mvn -f backend/pom.xml clean verify
 ```
 
-The build fails below 90% backend line coverage or 80% branch coverage. The HTML report is
-generated at `backend/target/site/jacoco/index.html`.
+The build fails below 90% backend line coverage or 80% branch coverage. The current suite contains
+147 passing tests. The HTML report is generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 99.26% | 90% |
-| Branches | 88.22% | 80% |
+| Lines | 99.33% | 90% |
+| Branches | 88.36% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -410,7 +414,13 @@ The current migrations create:
 - `billing.customers`
 - `billing.customer_credit_balances`
 - `billing.khata_ledger_entries`
-- supporting audit, catalog, barcode, stock-ledger and invoice indexes
+- `billing.purchase_sequences`
+- `billing.suppliers`
+- `billing.supplier_payable_balances`
+- `billing.purchases`
+- `billing.purchase_items`
+- `billing.supplier_ledger_entries`
+- supporting audit, catalog, barcode, stock-ledger, invoice and purchasing indexes
 
 ## Store setup and authentication API
 
@@ -475,6 +485,33 @@ Existing products also provide a `Print label` action in the product table. The 
 Printing opens the operating-system dialog so the operator can select the installed barcode or
 thermal printer. Configure the printer driver for 100% scale, zero margins and the same paper size
 selected in the application.
+
+## Purchase and supplier management API
+
+Purchasing endpoints are available to Owner, Admin and Inventory Manager roles. Supplier-payment
+posting is restricted to Owner and Admin. Suppliers can be made inactive without losing purchase
+or statement history; inactive suppliers cannot receive new purchases.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/purchasing/summary` | Return total supplier payables, due-supplier count and active-supplier count |
+| `GET/POST` | `/api/v1/purchasing/suppliers` | Search/page or create suppliers |
+| `GET/PUT` | `/api/v1/purchasing/suppliers/{supplierId}` | Read or version-update a supplier |
+| `GET` | `/api/v1/purchasing/suppliers/{supplierId}/statement` | Page immutable purchase-due and payment history |
+| `POST` | `/api/v1/purchasing/suppliers/{supplierId}/payments` | Record an idempotent full or partial supplier payment |
+| `GET/POST` | `/api/v1/purchasing/purchases` | Search/page purchases or receive a supplier invoice |
+| `GET` | `/api/v1/purchasing/purchases/{purchaseId}` | Retrieve an immutable purchase and item snapshot |
+
+Purchase receiving accepts tax-inclusive or tax-exclusive unit costs. The backend calculates GST,
+locks product balances in deterministic product-ID order, increases stock, updates each product's
+latest purchase cost and creates a `PURCHASE` stock-ledger transaction. Receipt and supplier-payment
+commands require an `Idempotency-Key`; supplier balances are pessimistically locked and payment
+requests include the current balance version to reject stale writes.
+
+The desktop Purchasing workspace provides supplier search and balance filters, contact maintenance,
+payable summaries, statement history, Owner/Admin payments, purchase search and purchase-detail
+views. Its receiving form searches active inventory, accepts quantities and costs, previews GST and
+payables, and commits inventory and supplier balance changes atomically.
 
 ## Point of Sale API and desktop workflow
 
@@ -558,7 +595,7 @@ The desktop Dashboard & Reports workspace provides:
 ## Desktop appearance and themes
 
 The renderer uses a shared Material-inspired semantic design system so authentication, setup,
-POS, Inventory, Khata, Reports and administrative screens respond consistently to appearance
+POS, Inventory, Purchasing, Khata, Reports and administrative screens respond consistently to appearance
 changes. Open **Appearance** from the navigation drawer or use the palette button in the top app
 bar.
 
@@ -674,14 +711,15 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-Store setup, authentication, inventory, POS, Khata, and Dashboard & Reports are complete. The next
-business slice is **Purchase & Supplier Management**:
+Store setup, authentication, inventory, POS, Khata, Dashboard & Reports, and the first Purchase &
+Supplier Management slice are complete. The next business slice is **Purchase Returns & Supplier
+Analytics**:
 
-1. supplier accounts and contact maintenance
-2. purchase receiving with supplier-invoice references
-3. locked inventory increases and immutable purchase-cost history
-4. supplier payment and outstanding tracking
-5. purchase returns and supplier-wise reports
+1. full and partial purchase returns against immutable purchase lines
+2. locked stock decreases with `PURCHASE_RETURN` ledger references
+3. supplier debit adjustments and return settlement history
+4. supplier-wise purchase, tax, outstanding and payment reports
+5. printable/exportable purchase and payable summaries
 
 Encrypted backup/restore, managed local database lifecycle and installer hardening remain part of
 the desktop-operations milestone before production deployment.

@@ -18,10 +18,11 @@ import { InventoryPanel } from "./inventory/InventoryPanel";
 import { PosPanel } from "./pos/PosPanel";
 import { KhataPanel } from "./khata/KhataPanel";
 import { ReportsPanel } from "./reports/ReportsPanel";
+import { PurchasingPanel } from "./purchasing/PurchasingPanel";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { ThemeSettings } from "./ThemeSettings";
 
-type Section = "home" | "pos" | "khata" | "inventory" | "reports" | "store" | "users" | "account";
+type Section = "home" | "pos" | "khata" | "inventory" | "purchases" | "reports" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -60,12 +61,16 @@ export function Workspace({
   const canViewReports = session.user.roles.some((role) =>
     role === "OWNER" || role === "ADMIN" || role === "VIEWER"
   );
+  const canUsePurchasing = session.user.roles.some((role) =>
+    role === "OWNER" || role === "ADMIN" || role === "INVENTORY_MANAGER"
+  );
 
   const navigation: Array<{ id: Section; label: string; visible: boolean; icon: AppIconName }> = [
     { id: "home", label: "Home", visible: true, icon: "home" },
     { id: "pos", label: "Point of sale", visible: canUsePos, icon: "pos" },
     { id: "khata", label: "Khata", visible: canUsePos, icon: "khata" },
     { id: "inventory", label: "Inventory", visible: canReadInventory, icon: "inventory" },
+    { id: "purchases", label: "Purchases & suppliers", visible: canUsePurchasing, icon: "purchases" },
     { id: "reports", label: "Dashboard & reports", visible: canViewReports, icon: "reports" },
     { id: "store", label: "Shop settings", visible: true, icon: "store" },
     { id: "users", label: "Users & roles", visible: canAdminister, icon: "users" },
@@ -141,6 +146,8 @@ export function Workspace({
                     ? "Customer credit & settlements"
                   : section === "inventory"
                     ? "Catalog & stock control"
+                  : section === "purchases"
+                    ? "Stock receiving & supplier payables"
                     : section === "reports"
                       ? "Sales, margin & operational insights"
                     : "Store setup & authentication"}
@@ -159,6 +166,9 @@ export function Workspace({
           {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}
           {section === "inventory" && canReadInventory && (
             <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />
+          )}
+          {section === "purchases" && canUsePurchasing && (
+            <PurchasingPanel accessToken={session.accessToken} canPay={canAdminister} />
           )}
           {section === "reports" && canViewReports && (
             <ReportsPanel accessToken={session.accessToken} />

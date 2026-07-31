@@ -66,11 +66,17 @@ class MySqlMigrationIT {
                       'payments',
                       'customers',
                       'customer_credit_balances',
-                      'khata_ledger_entries'
+                      'khata_ledger_entries',
+                      'purchase_sequences',
+                      'suppliers',
+                      'supplier_payable_balances',
+                      'purchases',
+                      'purchase_items',
+                      'supplier_ledger_entries'
                   )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(20);
+        assertThat(tableCount).isEqualTo(26);
     }
 }
