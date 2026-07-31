@@ -284,8 +284,11 @@ if (!hasSingleInstanceLock) {
             pageSize: "A4"
           },
           (success, failureReason) => {
-            if (success) resolve();
-            else reject(new Error(failureReason || "Report printing was cancelled or failed."));
+            if (success || /cancel(?:led|ed)/i.test(failureReason || "")) {
+              resolve();
+            } else {
+              reject(new Error(failureReason || "Report printing failed."));
+            }
           }
         );
       });
