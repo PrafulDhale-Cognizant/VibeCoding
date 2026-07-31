@@ -50,7 +50,7 @@ public class ProductController {
     public InventoryPage<ProductResponse> searchProducts(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String categoryId,
-            @RequestParam(required = false, defaultValue = "true") Boolean active,
+            @RequestParam(required = false) Boolean active,
             @RequestParam(defaultValue = "ALL") StockStatus stockStatus,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,

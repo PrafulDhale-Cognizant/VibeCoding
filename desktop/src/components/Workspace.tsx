@@ -14,8 +14,9 @@ import {
   SuccessNotice,
   TextInput
 } from "./FormControls";
+import { InventoryPanel } from "./inventory/InventoryPanel";
 
-type Section = "home" | "store" | "users" | "account";
+type Section = "home" | "inventory" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -42,9 +43,16 @@ export function Workspace({
 }) {
   const [section, setSection] = useState<Section>("home");
   const canAdminister = session.user.roles.some((role) => role === "OWNER" || role === "ADMIN");
+  const canReadInventory = session.user.roles.some((role) =>
+    role === "OWNER" || role === "ADMIN" || role === "INVENTORY_MANAGER" || role === "VIEWER"
+  );
+  const canWriteInventory = session.user.roles.some((role) =>
+    role === "OWNER" || role === "ADMIN" || role === "INVENTORY_MANAGER"
+  );
 
   const navigation: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: "home", label: "Home", visible: true },
+    { id: "inventory", label: "Inventory", visible: canReadInventory },
     { id: "store", label: "Shop settings", visible: true },
     { id: "users", label: "Users & roles", visible: canAdminister },
     { id: "account", label: "My account", visible: true }
@@ -96,7 +104,9 @@ export function Workspace({
         <header className="border-b border-slate-200 bg-white px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-500">Store setup & authentication</p>
+              <p className="text-sm font-semibold text-slate-500">
+                {section === "inventory" ? "Catalog & stock control" : "Store setup & authentication"}
+              </p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight">
                 {navigation.find((item) => item.id === section)?.label}
               </h2>
@@ -109,6 +119,9 @@ export function Workspace({
 
         <main className="p-8">
           {section === "home" && <HomePanel accessToken={session.accessToken} user={session.user} />}
+          {section === "inventory" && canReadInventory && (
+            <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />
+          )}
           {section === "store" && (
             <StorePanel accessToken={session.accessToken} canEdit={canAdminister} />
           )}
@@ -145,8 +158,8 @@ function HomePanel({ accessToken, user }: { accessToken: string; user: UserSumma
           {store?.shopName ?? "Loading shop…"}
         </h3>
         <p className="mt-4 max-w-2xl leading-7 text-indigo-100">
-          Store setup and local authentication are ready. Inventory and point-of-sale modules can
-          now be built on this secured foundation.
+          Store setup, authentication and inventory management are ready. Product catalog, barcode,
+          stock adjustment and low-stock workflows are available from the Inventory workspace.
         </p>
       </section>
 

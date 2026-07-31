@@ -4,7 +4,7 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication** module:
+Authentication** and **Inventory Management** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -13,12 +13,14 @@ Authentication** module:
 - BCrypt password hashing, login throttling, roles, and local user administration
 - shop settings and receipt-logo management with optimistic concurrency
 - consistent API errors and request correlation IDs
-- React 19 and Tailwind CSS setup, login, settings, users, and account screens
+- category, product, barcode, inventory-balance and immutable stock-ledger services
+- paged product search, low-stock alerts and locked stock adjustments
+- React 19 and Tailwind CSS setup, login, inventory, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Inventory, purchases, POS, Khata and reports remain separate implementation milestones.
+Purchases, POS, Khata and reports remain separate implementation milestones.
 
 ## Documentation
 
@@ -538,11 +540,11 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-The inventory backend is complete. The next slice is the **Inventory Desktop UI**:
+The inventory backend and desktop workspace are complete. The next core slice is **Point of Sale**:
 
-1. paged product list with search, category and stock-status filters
-2. keyboard-friendly create/edit product form
-3. category management and internal barcode generation
-4. audited stock-adjustment dialog and stock-ledger view
-5. low-stock/out-of-stock alert panels
-6. React component and API-client tests
+1. scanner-first product lookup and cart state
+2. 70/30 keyboard-friendly POS layout
+3. server-authoritative discount, GST and rounding calculations
+4. locked, idempotent checkout with atomic stock deduction
+5. cash, UPI, card and Udhaar payment workflows
+6. 58 mm and 80 mm thermal receipt rendering

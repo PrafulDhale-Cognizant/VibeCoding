@@ -1,9 +1,21 @@
 import type {
   AuthResponse,
+  CategoryResponse,
   InitialSetupRequest,
+  InventoryPage,
+  ProductAlertResponse,
+  ProductCreateRequest,
+  ProductLookupResponse,
+  ProductResponse,
+  ProductSort,
+  ProductUpdateRequest,
   SetupStatus,
+  StockReasonCode,
+  StockStatus,
+  StockTransactionResponse,
   StoreDetails,
   StoreProfile,
+  UnitResponse,
   UserRole,
   UserSummary
 } from "../types";
@@ -153,6 +165,120 @@ export const api = {
     request<void>(
       `/api/v1/users/${userId}/reset-password`,
       { method: "POST", body: JSON.stringify({ newPassword }) },
+      accessToken
+    ),
+  listCategories: (accessToken: string, includeInactive = false) =>
+    request<CategoryResponse[]>(
+      `/api/v1/inventory/categories?includeInactive=${includeInactive}`,
+      {},
+      accessToken
+    ),
+  createCategory: (accessToken: string, name: string) =>
+    request<CategoryResponse>(
+      "/api/v1/inventory/categories",
+      { method: "POST", body: JSON.stringify({ name }) },
+      accessToken
+    ),
+  updateCategory: (
+    accessToken: string,
+    categoryId: string,
+    body: { name: string; active: boolean; version: number }
+  ) =>
+    request<CategoryResponse>(
+      `/api/v1/inventory/categories/${categoryId}`,
+      { method: "PUT", body: JSON.stringify(body) },
+      accessToken
+    ),
+  listUnits: (accessToken: string) =>
+    request<UnitResponse[]>("/api/v1/inventory/units", {}, accessToken),
+  searchProducts: (
+    accessToken: string,
+    filters: {
+      query?: string;
+      categoryId?: string;
+      active?: boolean | null;
+      stockStatus?: StockStatus;
+      page?: number;
+      size?: number;
+      sort?: ProductSort;
+    }
+  ) => {
+    const parameters = new URLSearchParams();
+    if (filters.query?.trim()) parameters.set("query", filters.query.trim());
+    if (filters.categoryId) parameters.set("categoryId", filters.categoryId);
+    if (filters.active !== null && filters.active !== undefined) {
+      parameters.set("active", String(filters.active));
+    }
+    parameters.set("stockStatus", filters.stockStatus ?? "ALL");
+    parameters.set("page", String(filters.page ?? 0));
+    parameters.set("size", String(filters.size ?? 25));
+    parameters.set("sort", filters.sort ?? "NAME_ASC");
+    return request<InventoryPage<ProductResponse>>(
+      `/api/v1/inventory/products?${parameters.toString()}`,
+      {},
+      accessToken
+    );
+  },
+  getProduct: (accessToken: string, productId: string) =>
+    request<ProductResponse>(`/api/v1/inventory/products/${productId}`, {}, accessToken),
+  findProductByBarcode: (accessToken: string, barcode: string) =>
+    request<ProductLookupResponse>(
+      `/api/v1/inventory/products/by-barcode/${encodeURIComponent(barcode)}`,
+      {},
+      accessToken
+    ),
+  createProduct: (accessToken: string, body: ProductCreateRequest) =>
+    request<ProductResponse>(
+      "/api/v1/inventory/products",
+      { method: "POST", body: JSON.stringify(body) },
+      accessToken
+    ),
+  updateProduct: (
+    accessToken: string,
+    productId: string,
+    body: ProductUpdateRequest
+  ) =>
+    request<ProductResponse>(
+      `/api/v1/inventory/products/${productId}`,
+      { method: "PUT", body: JSON.stringify(body) },
+      accessToken
+    ),
+  generateBarcode: (accessToken: string) =>
+    request<{ barcode: string }>(
+      "/api/v1/inventory/barcodes/generate",
+      { method: "POST" },
+      accessToken
+    ),
+  adjustStock: (
+    accessToken: string,
+    productId: string,
+    body: {
+      quantityDelta: number;
+      reasonCode: StockReasonCode;
+      notes: string;
+      stockVersion: number;
+    }
+  ) =>
+    request<ProductResponse>(
+      `/api/v1/inventory/products/${productId}/stock-adjustments`,
+      { method: "POST", body: JSON.stringify(body) },
+      accessToken
+    ),
+  getStockLedger: (accessToken: string, productId: string, page = 0, size = 25) =>
+    request<InventoryPage<StockTransactionResponse>>(
+      `/api/v1/inventory/products/${productId}/stock-ledger?page=${page}&size=${size}`,
+      {},
+      accessToken
+    ),
+  getStockAlerts: (
+    accessToken: string,
+    status: "LOW_STOCK" | "OUT_OF_STOCK",
+    page = 0,
+    size = 25
+  ) =>
+    request<InventoryPage<ProductAlertResponse>>(
+      `/api/v1/inventory/stock-alerts?status=${status}&page=${page}&size=${size}`,
+      {},
       accessToken
     )
 };
