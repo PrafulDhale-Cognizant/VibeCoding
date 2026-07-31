@@ -52,11 +52,18 @@ class MySqlMigrationIT {
                       'shop_profiles',
                       'users',
                       'user_roles',
-                      'refresh_tokens'
+                      'refresh_tokens',
+                      'product_units',
+                      'categories',
+                      'products',
+                      'product_barcodes',
+                      'inventory_balances',
+                      'stock_transactions',
+                      'internal_barcode_sequences'
                   )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(6);
+        assertThat(tableCount).isEqualTo(13);
     }
 }

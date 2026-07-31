@@ -8,3 +8,11 @@ CREATE TABLE IF NOT EXISTS audit_events (
     details VARCHAR(4000) NOT NULL,
     occurred_at TIMESTAMP(6) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS internal_barcode_sequences (
+    sequence_name VARCHAR(32) PRIMARY KEY,
+    next_value BIGINT NOT NULL
+);
+
+MERGE INTO internal_barcode_sequences (sequence_name, next_value)
+KEY (sequence_name) VALUES ('PRODUCT', 1);

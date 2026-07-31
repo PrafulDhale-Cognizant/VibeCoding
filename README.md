@@ -279,8 +279,8 @@ generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 98.01% | 90% |
-| Branches | 83.82% | 80% |
+| Lines | 98.79% | 90% |
+| Branches | 87.45% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -379,7 +379,14 @@ The current migrations create:
 - `billing.users`
 - `billing.user_roles`
 - `billing.refresh_tokens`
-- supporting audit indexes
+- `billing.product_units`
+- `billing.categories`
+- `billing.products`
+- `billing.product_barcodes`
+- `billing.inventory_balances`
+- `billing.stock_transactions`
+- `billing.internal_barcode_sequences`
+- supporting audit, catalog, barcode and stock-ledger indexes
 
 ## Store setup and authentication API
 
@@ -400,6 +407,35 @@ The current migrations create:
 The first account receives `OWNER` and `ADMIN`. Supported roles are `OWNER`, `ADMIN`, `CASHIER`,
 `INVENTORY_MANAGER`, and `VIEWER`. Only an owner can create or modify another owner, the signed-in
 user cannot deactivate themselves, and the last active owner cannot be removed.
+
+## Inventory management API
+
+Inventory read endpoints are available to Owner, Admin, Inventory Manager and Viewer. Product and
+stock mutations require Owner, Admin or Inventory Manager. Exact barcode lookup and the fixed unit
+catalog are available to every authenticated user so the later POS module can use them without
+exposing product purchase cost.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET/POST` | `/api/v1/inventory/categories` | List or create categories |
+| `PUT` | `/api/v1/inventory/categories/{categoryId}` | Rename or activate/deactivate a category using its version |
+| `GET/POST` | `/api/v1/inventory/products` | Search/page products or create a product with opening stock |
+| `GET/PUT` | `/api/v1/inventory/products/{productId}` | Read or update product metadata using its version |
+| `GET` | `/api/v1/inventory/products/by-barcode/{barcode}` | Perform indexed exact barcode lookup with a POS-safe response |
+| `GET` | `/api/v1/inventory/units` | List fixed product units and decimal-quantity support |
+| `POST` | `/api/v1/inventory/barcodes/generate` | Allocate an offline EAN-13 internal barcode |
+| `POST` | `/api/v1/inventory/products/{productId}/stock-adjustments` | Post a locked, version-checked stock adjustment |
+| `GET` | `/api/v1/inventory/products/{productId}/stock-ledger` | Page immutable stock history newest first |
+| `GET` | `/api/v1/inventory/stock-alerts` | Page low-stock or out-of-stock products |
+
+Product search supports `query`, `categoryId`, `active`, `stockStatus`, `page`, `size` and `sort`.
+Page size is limited to 100. Supported sort values are `NAME_ASC`, `NAME_DESC`, `UPDATED_DESC`,
+`PRICE_ASC` and `STOCK_ASC`.
+
+Quantities use three-decimal `BigDecimal` values and money uses two-decimal values. Piece, packet,
+box and dozen reject fractional stock; kilogram, gram, litre and millilitre permit it. Stock cannot
+be changed through the product update endpoint: every change must use the locked adjustment service
+and create a ledger transaction.
 
 ## Backend module conventions
 
@@ -502,11 +538,11 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-The next milestone is **Inventory Management**:
+The inventory backend is complete. The next slice is the **Inventory Desktop UI**:
 
-1. category, unit, product, barcode, and stock-ledger schema
-2. product DTOs and CRUD APIs
-3. custom barcode allocation
-4. stock adjustments with reason codes
-5. low-stock queries and notifications
-6. inventory desktop screens and tests
+1. paged product list with search, category and stock-status filters
+2. keyboard-friendly create/edit product form
+3. category management and internal barcode generation
+4. audited stock-adjustment dialog and stock-ledger view
+5. low-stock/out-of-stock alert panels
+6. React component and API-client tests
