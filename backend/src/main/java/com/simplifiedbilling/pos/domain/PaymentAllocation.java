@@ -7,5 +7,7 @@ public record PaymentAllocation(
         BigDecimal amount,
         BigDecimal tenderedAmount,
         BigDecimal changeAmount,
-        String reference) {
+        String reference,
+        String customerId,
+        String customerName) {
 }

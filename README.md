@@ -4,7 +4,7 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication**, **Inventory Management**, and first **Point of Sale** modules:
+Authentication**, **Inventory Management**, **Point of Sale**, and **Khata** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -19,12 +19,15 @@ Authentication**, **Inventory Management**, and first **Point of Sale** modules:
 - atomically locked sale deductions, immutable invoices, line snapshots and payment records
 - scanner-first 70/30 POS workspace with Cash, UPI and Card collection
 - 58 mm and 80 mm thermal receipt preview and operating-system printing
+- customer accounts, append-only credit statements and locked outstanding balances
+- atomic Udhaar checkout plus idempotent full or partial settlements
+- Khata receivable summary, customer search, maintenance and statement workspace
 - React 19 and Tailwind CSS setup, login, POS, inventory, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Purchases, Khata, dashboard reports and backup/restore remain separate implementation milestones.
+Purchases, dashboard reports and backup/restore remain separate implementation milestones.
 
 ## Documentation
 
@@ -285,8 +288,8 @@ generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 99.06% | 90% |
-| Branches | 87.26% | 80% |
+| Lines | 99.19% | 90% |
+| Branches | 88.14% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -398,6 +401,9 @@ The current migrations create:
 - `billing.invoices`
 - `billing.invoice_items`
 - `billing.payments`
+- `billing.customers`
+- `billing.customer_credit_balances`
+- `billing.khata_ledger_entries`
 - supporting audit, catalog, barcode, stock-ledger and invoice indexes
 
 ## Store setup and authentication API
@@ -489,9 +495,31 @@ entry and scanners that terminate with Enter add the item immediately. Keyboard 
 - `F4`: save/print the current bill, or reprint the completed receipt
 - `Esc`: clear the current cart after confirmation
 
-Cash, UPI and Card are implemented. The backend supports split payment records, while the first
-desktop workflow collects one mode per bill. Udhaar is deliberately deferred until the Khata
-module can create the customer credit ledger in the same transaction.
+Cash, UPI, Card and customer-linked Udhaar are implemented. The backend supports split payment
+records, while the first desktop workflow collects one mode per bill. Udhaar requires an active
+customer and creates the invoice, payment, stock deduction and Khata credit entry in one database
+transaction.
+
+## Khata API and desktop workflow
+
+Khata endpoints are available to Owner, Admin and Cashier roles. Customer balances are locked for
+credit sales and settlements, and every movement is stored as an immutable statement entry.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/khata/summary` | Return total receivables and customer counts |
+| `GET/POST` | `/api/v1/khata/customers` | Search/page or create customer accounts |
+| `GET/PUT` | `/api/v1/khata/customers/{customerId}` | Read or version-update a customer |
+| `GET` | `/api/v1/khata/customers/{customerId}/statement` | Page immutable credit and settlement history |
+| `POST` | `/api/v1/khata/customers/{customerId}/settlements` | Record a full or partial Cash, UPI or Card settlement |
+
+Customer mobile numbers are normalized to a unique 10-digit Indian number. Inactive customers
+remain available for statement review and settlement, but cannot receive new Udhaar sales.
+Settlements require an `Idempotency-Key`, are rejected when they exceed the due amount, and use a
+balance version to prevent operators from settling a stale balance.
+
+The desktop Khata workspace provides receivable totals, customer and due counters, name/phone
+search, balance filters, account maintenance, statement history and partial/full settlement.
 
 ## Backend module conventions
 
@@ -594,11 +622,11 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-Store setup, authentication, inventory and the first POS slice are complete. The next core slice is
-**Khata (customer credit management)**:
+Store setup, authentication, inventory, POS and Khata are complete. The next core slice is
+**Dashboard & Reports**:
 
-1. customer identity and phone-based lookup
-2. append-only credit/debit ledger
-3. Udhaar checkout posted atomically with the invoice
-4. full and partial due settlement
-5. customer statement and overdue balance views
+1. today's sales, bill count, revenue and payment-mode totals
+2. gross profit using immutable invoice purchase-cost snapshots
+3. date-range sales, tax and profit summaries
+4. low-stock/out-of-stock dashboard widgets
+5. printable/exportable daily and period reports

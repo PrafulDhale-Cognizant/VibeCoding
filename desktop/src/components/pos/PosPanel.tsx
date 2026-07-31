@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api } from "../../lib/api";
 import type {
   DiscountType,
+  KhataCustomerResponse,
   PaymentMode,
   PosCartItemRequest,
   PosInvoiceResponse,
@@ -400,9 +401,10 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
 
       {paymentOpen && quote && (
         <PaymentModal
+          accessToken={accessToken}
           quote={quote}
           onClose={() => setPaymentOpen(false)}
-          onCheckout={async (mode, tendered, reference) => {
+          onCheckout={async (mode, tendered, reference, customerId) => {
             const key = checkoutKey.current ?? crypto.randomUUID();
             checkoutKey.current = key;
             const completed = await api.checkoutSale(accessToken, key, {
@@ -411,7 +413,8 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                 mode,
                 amount: quote.totalAmount,
                 ...(mode === "CASH" ? { tenderedAmount: tendered } : {}),
-                ...(reference.trim() ? { reference: reference.trim() } : {})
+                ...(reference.trim() ? { reference: reference.trim() } : {}),
+                ...(mode === "UDHAAR" && customerId ? { customerId } : {})
               }],
               notes: ""
             });
@@ -445,27 +448,54 @@ function TotalRow({ label, value, muted = false }: { label: string; value?: numb
 }
 
 function PaymentModal({
+  accessToken,
   quote,
   onClose,
   onCheckout
 }: {
+  accessToken: string;
   quote: PosQuoteResponse;
   onClose: () => void;
-  onCheckout: (mode: PaymentMode, tendered: number, reference: string) => Promise<void>;
+  onCheckout: (mode: PaymentMode, tendered: number, reference: string, customerId?: string) => Promise<void>;
 }) {
   const [mode, setMode] = useState<PaymentMode>("CASH");
   const [tendered, setTendered] = useState(quote.totalAmount);
   const [reference, setReference] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customers, setCustomers] = useState<KhataCustomerResponse[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<KhataCustomerResponse | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const change = mode === "CASH" ? Math.max(0, tendered - quote.totalAmount) : 0;
+
+  useEffect(() => {
+    if (mode !== "UDHAAR") return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.searchKhataCustomers(accessToken, {
+        query: customerQuery,
+        active: true,
+        balanceStatus: "ALL",
+        page: 0,
+        size: 8
+      }).then((page) => {
+        if (!cancelled) setCustomers(page.content);
+      }).catch(() => {
+        if (!cancelled) setCustomers([]);
+      });
+    }, customerQuery ? 200 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [accessToken, customerQuery, mode]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError("");
     try {
-      await onCheckout(mode, tendered, reference);
+      await onCheckout(mode, tendered, reference, selectedCustomer?.id);
     } catch (caught) {
       setError(messageFrom(caught, "Checkout could not be completed."));
     } finally {
@@ -481,8 +511,8 @@ function PaymentModal({
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 font-bold text-slate-500 hover:bg-slate-100">✕</button>
         </div>
         {error && <div className="mt-4"><ErrorNotice message={error} /></div>}
-        <div className="mt-6 grid grid-cols-3 gap-3">
-          {(["CASH", "UPI", "CARD"] as PaymentMode[]).map((value) => (
+        <div className="mt-6 grid grid-cols-4 gap-3">
+          {(["CASH", "UPI", "CARD", "UDHAAR"] as PaymentMode[]).map((value) => (
             <button key={value} type="button" onClick={() => setMode(value)} className={`rounded-xl border-2 px-4 py-4 font-bold ${mode === value ? "border-indigo-600 bg-indigo-50 text-indigo-800" : "border-slate-200 hover:border-slate-300"}`}>{value}</button>
           ))}
         </div>
@@ -491,10 +521,32 @@ function PaymentModal({
             <label className="text-sm font-bold text-slate-700">Cash tendered<input autoFocus type="number" min={quote.totalAmount} step="0.01" value={tendered} onChange={(event) => setTendered(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg font-bold outline-none focus:border-indigo-600" /></label>
             <div className="rounded-xl bg-emerald-50 p-4"><p className="text-sm font-bold text-emerald-800">Change to return</p><p className="mt-2 text-2xl font-black text-emerald-900">{money.format(change)}</p></div>
           </div>
+        ) : mode === "UDHAAR" ? (
+          <div className="mt-5">
+            <label className="block text-sm font-bold text-slate-700">Credit customer
+              <input autoFocus value={customerQuery} onChange={(event) => { setCustomerQuery(event.target.value); setSelectedCustomer(null); }} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-600" placeholder="Search customer name or phone" />
+            </label>
+            {selectedCustomer ? (
+              <div className="mt-3 flex items-center justify-between rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4">
+                <div><p className="font-bold text-emerald-950">{selectedCustomer.name}</p><p className="text-sm text-emerald-800">{selectedCustomer.phone} · Current due {money.format(selectedCustomer.outstandingAmount)}</p></div>
+                <button type="button" onClick={() => setSelectedCustomer(null)} className="text-sm font-bold text-emerald-800">Change</button>
+              </div>
+            ) : (
+              <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-slate-200 p-1">
+                {customers.length === 0 ? <p className="p-3 text-sm text-slate-500">No active customers found. Create one in Khata first.</p> : customers.map((customer) => (
+                  <button key={customer.id} type="button" onClick={() => { setSelectedCustomer(customer); setCustomerQuery(customer.name); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left hover:bg-indigo-50">
+                    <div><p className="text-sm font-bold">{customer.name}</p><p className="text-xs text-slate-500">{customer.phone}</p></div>
+                    <span className="text-xs font-bold text-red-700">Due {money.format(customer.outstandingAmount)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">This bill will be added to the selected customer’s Khata balance.</p>
+          </div>
         ) : (
           <label className="mt-5 block text-sm font-bold text-slate-700">{mode} reference <span className="font-normal text-slate-400">(optional)</span><input autoFocus value={reference} onChange={(event) => setReference(event.target.value)} maxLength={100} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-600" placeholder="Transaction / approval reference" /></label>
         )}
-        <button disabled={saving || (mode === "CASH" && tendered < quote.totalAmount)} className="mt-6 w-full rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white hover:bg-emerald-700 disabled:opacity-50">{saving ? "Saving sale…" : "SAVE BILL & OPEN RECEIPT"}</button>
+        <button disabled={saving || (mode === "CASH" && tendered < quote.totalAmount) || (mode === "UDHAAR" && !selectedCustomer)} className="mt-6 w-full rounded-xl bg-emerald-600 px-5 py-4 text-lg font-black text-white hover:bg-emerald-700 disabled:opacity-50">{saving ? "Saving sale…" : "SAVE BILL & OPEN RECEIPT"}</button>
       </form>
     </div>
   );
@@ -525,7 +577,7 @@ function ThermalReceipt({ invoice }: { invoice: PosInvoiceResponse }) {
       <header className="text-center"><h1 className="font-sans text-base font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}</p>{invoice.store.gstin && <p>GSTIN: {invoice.store.gstin}</p>}</header>
       <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span><span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local" : "Interstate"}</span></div></div>
       <table className="w-full table-fixed"><thead><tr className="border-b border-black"><th className="w-[48%] text-left">Item</th><th className="w-[14%] text-right">Qty</th><th className="w-[18%] text-right">Rate</th><th className="w-[20%] text-right">Amt</th></tr></thead><tbody>{invoice.totals.lines.map((line) => <tr key={line.lineNumber} className="align-top"><td className="pr-1">{line.receiptName}</td><td className="text-right">{line.quantity}</td><td className="text-right">{line.unitPrice.toFixed(2)}</td><td className="text-right">{line.lineTotal.toFixed(2)}</td></tr>)}</tbody></table>
-      <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}<ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
+      <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}<ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.customerName ? `${payment.mode} · ${payment.customerName}` : payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
       <footer className="mt-3 text-center"><p className="font-bold">Thank you. Visit again!</p><p className="mt-1 text-[0.85em]">Computer-generated invoice</p></footer>
     </article>
   );

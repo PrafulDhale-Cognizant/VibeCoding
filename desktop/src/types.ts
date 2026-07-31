@@ -200,7 +200,7 @@ export interface StockTransactionResponse {
 
 export type DiscountType = "NONE" | "PERCENTAGE" | "FIXED";
 export type TaxMode = "INTRA_STATE" | "INTER_STATE";
-export type PaymentMode = "CASH" | "UPI" | "CARD";
+export type PaymentMode = "CASH" | "UPI" | "CARD" | "UDHAAR";
 
 export interface PosCartItemRequest {
   productId: string;
@@ -257,6 +257,7 @@ export interface PosPaymentRequest {
   amount: number;
   tenderedAmount?: number;
   reference?: string;
+  customerId?: string;
 }
 
 export interface PosInvoiceResponse {
@@ -280,6 +281,55 @@ export interface PosInvoiceResponse {
     tenderedAmount: number | null;
     changeAmount: number;
     reference: string | null;
+    customerId: string | null;
+    customerName: string | null;
   }>;
+  idempotentReplay: boolean;
+}
+
+export type KhataBalanceStatus = "ALL" | "DUE" | "CLEAR";
+export type KhataEntryType = "CREDIT_SALE" | "SETTLEMENT";
+export type SettlementMode = "CASH" | "UPI" | "CARD";
+
+export interface KhataCustomerResponse {
+  id: string;
+  name: string;
+  phone: string;
+  notes: string | null;
+  active: boolean;
+  outstandingAmount: number;
+  version: number;
+  balanceVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KhataLedgerEntryResponse {
+  id: string;
+  customerId: string;
+  entryType: KhataEntryType;
+  amount: number;
+  balanceAfter: number;
+  invoiceId: string | null;
+  paymentMode: SettlementMode | null;
+  paymentReference: string | null;
+  notes: string | null;
+  actorUserId: string;
+  occurredAt: string;
+}
+
+export interface KhataSummaryResponse {
+  totalOutstanding: number;
+  customersWithDue: number;
+  activeCustomers: number;
+}
+
+export interface KhataSettlementResponse {
+  entryId: string;
+  customerId: string;
+  amount: number;
+  balanceAfter: number;
+  paymentMode: SettlementMode;
+  occurredAt: string;
   idempotentReplay: boolean;
 }

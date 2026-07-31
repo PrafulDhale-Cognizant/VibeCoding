@@ -36,7 +36,8 @@ public final class PosRequests {
             @NotNull PaymentMode mode,
             @NotNull @DecimalMin(value = "0.01") BigDecimal amount,
             @DecimalMin("0.00") BigDecimal tenderedAmount,
-            @Size(max = 100) String reference) {
+            @Size(max = 100) String reference,
+            @Size(max = 36) String customerId) {
     }
 
     public record CheckoutRequest(

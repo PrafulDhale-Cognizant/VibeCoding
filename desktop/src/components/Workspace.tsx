@@ -16,8 +16,9 @@ import {
 } from "./FormControls";
 import { InventoryPanel } from "./inventory/InventoryPanel";
 import { PosPanel } from "./pos/PosPanel";
+import { KhataPanel } from "./khata/KhataPanel";
 
-type Section = "home" | "pos" | "inventory" | "store" | "users" | "account";
+type Section = "home" | "pos" | "khata" | "inventory" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -57,6 +58,7 @@ export function Workspace({
   const navigation: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: "home", label: "Home", visible: true },
     { id: "pos", label: "Point of sale", visible: canUsePos },
+    { id: "khata", label: "Khata", visible: canUsePos },
     { id: "inventory", label: "Inventory", visible: canReadInventory },
     { id: "store", label: "Shop settings", visible: true },
     { id: "users", label: "Users & roles", visible: canAdminister },
@@ -112,6 +114,8 @@ export function Workspace({
               <p className="text-sm font-semibold text-slate-500">
                 {section === "pos"
                   ? "Scanner-first checkout"
+                  : section === "khata"
+                    ? "Customer credit & settlements"
                   : section === "inventory"
                     ? "Catalog & stock control"
                     : "Store setup & authentication"}
@@ -129,6 +133,7 @@ export function Workspace({
         <main className={section === "pos" ? "p-5" : "p-8"}>
           {section === "home" && <HomePanel accessToken={session.accessToken} user={session.user} />}
           {section === "pos" && canUsePos && <PosPanel accessToken={session.accessToken} />}
+          {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}
           {section === "inventory" && canReadInventory && (
             <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />
           )}

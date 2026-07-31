@@ -59,7 +59,8 @@ public class PosMapper {
                 receiptStore, totals,
                 invoice.getPayments().stream().map(payment -> new PosResponses.PaymentResponse(
                         payment.getMode(), payment.getAmount(), payment.getTenderedAmount(),
-                        payment.getChangeAmount(), payment.getReference())).toList(),
+                        payment.getChangeAmount(), payment.getReference(), payment.getCustomerId(),
+                        payment.getCustomerName())).toList(),
                 idempotentReplay);
     }
 

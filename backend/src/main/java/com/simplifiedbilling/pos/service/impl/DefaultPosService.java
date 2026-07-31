@@ -3,6 +3,8 @@ package com.simplifiedbilling.pos.service.impl;
 import com.simplifiedbilling.inventory.service.CheckoutInventoryService;
 import com.simplifiedbilling.inventory.service.SaleProductSnapshot;
 import com.simplifiedbilling.inventory.service.SaleStockRequest;
+import com.simplifiedbilling.khata.service.CreditAccountService;
+import com.simplifiedbilling.khata.service.CreditCustomerSnapshot;
 import com.simplifiedbilling.pos.domain.Invoice;
 import com.simplifiedbilling.pos.domain.PaymentAllocation;
 import com.simplifiedbilling.pos.domain.PaymentMode;
@@ -42,6 +44,7 @@ public class DefaultPosService implements PosService {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceNumberAllocator numberAllocator;
     private final StoreService storeService;
+    private final CreditAccountService creditAccountService;
     private final PosMapper mapper;
     private final AuditWriter auditWriter;
     private final Clock clock;
@@ -52,6 +55,7 @@ public class DefaultPosService implements PosService {
             InvoiceRepository invoiceRepository,
             InvoiceNumberAllocator numberAllocator,
             StoreService storeService,
+            CreditAccountService creditAccountService,
             PosMapper mapper,
             AuditWriter auditWriter,
             Clock clock) {
@@ -60,6 +64,7 @@ public class DefaultPosService implements PosService {
         this.invoiceRepository = invoiceRepository;
         this.numberAllocator = numberAllocator;
         this.storeService = storeService;
+        this.creditAccountService = creditAccountService;
         this.mapper = mapper;
         this.auditWriter = auditWriter;
         this.clock = clock;
@@ -106,6 +111,10 @@ public class DefaultPosService implements PosService {
                 normalizeText(request.notes()),
                 now);
         invoiceRepository.saveAndFlush(invoice);
+        payments.stream()
+                .filter(payment -> payment.mode() == PaymentMode.UDHAAR)
+                .forEach(payment -> creditAccountService.postCreditSale(
+                        actorUserId, payment.customerId(), invoiceId, payment.amount()));
         auditWriter.write(
                 actorUserId,
                 "SALE_COMPLETED",
@@ -142,16 +151,34 @@ public class DefaultPosService implements PosService {
             }
             BigDecimal tendered = null;
             BigDecimal change = ZERO;
+            String customerId = null;
+            String customerName = null;
             if (request.mode() == PaymentMode.CASH) {
                 tendered = money(request.tenderedAmount() == null ? amount : request.tenderedAmount());
                 if (tendered.compareTo(amount) < 0) {
                     throw invalid("INSUFFICIENT_CASH", "Tendered cash cannot be less than the cash payment.");
                 }
                 change = tendered.subtract(amount);
+            } else if (request.mode() == PaymentMode.UDHAAR) {
+                if (request.customerId() == null || request.customerId().isBlank()) {
+                    throw invalid("CREDIT_CUSTOMER_REQUIRED", "Select a customer for Udhaar payment.");
+                }
+                CreditCustomerSnapshot customer = creditAccountService.getCreditCustomer(request.customerId().trim());
+                customerId = customer.customerId();
+                customerName = customer.name();
+            } else if (request.customerId() != null && !request.customerId().isBlank()) {
+                throw invalid("INVALID_PAYMENT_CUSTOMER", "A customer can only be attached to Udhaar payment.");
             }
             return new PaymentAllocation(
-                    request.mode(), amount, tendered, change, normalizeText(request.reference()));
+                    request.mode(), amount, tendered, change, normalizeText(request.reference()),
+                    customerId, customerName);
         }).toList();
+        long creditPayments = allocations.stream()
+                .filter(payment -> payment.mode() == PaymentMode.UDHAAR)
+                .count();
+        if (creditPayments > 1) {
+            throw invalid("MULTIPLE_CREDIT_PAYMENTS", "A bill can contain only one Udhaar payment.");
+        }
         BigDecimal paid = allocations.stream()
                 .map(PaymentAllocation::amount)
                 .reduce(ZERO, BigDecimal::add);

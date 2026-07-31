@@ -32,13 +32,13 @@ class InvoiceDomainTest {
                                 new BigDecimal("70.00"),
                                 new BigDecimal("100.00"),
                                 new BigDecimal("30.00"),
-                                null),
+                                null, null, null),
                         new PaymentAllocation(
-                                PaymentMode.UPI,
+                                PaymentMode.UDHAAR,
                                 new BigDecimal("30.00"),
                                 null,
                                 BigDecimal.ZERO.setScale(2),
-                                "UPI-1")),
+                                null, "customer-1", "Ravi")),
                 "Counter sale",
                 NOW);
 
@@ -90,6 +90,8 @@ class InvoiceDomainTest {
         assertThat(cash.getChangeAmount()).isEqualByComparingTo("30.00");
         assertThat(cash.getReference()).isNull();
         assertThat(cash.getRecordedAt()).isEqualTo(NOW);
+        assertThat(invoice.getPayments().get(1).getCustomerId()).isEqualTo("customer-1");
+        assertThat(invoice.getPayments().get(1).getCustomerName()).isEqualTo("Ravi");
         invoice.markNotNew();
         assertThat(invoice.isNew()).isFalse();
     }
@@ -110,7 +112,7 @@ class InvoiceDomainTest {
                 "invoice-id", "INV-1", "checkout-key", "cashier", pricing,
                 List.of(new PaymentAllocation(
                         PaymentMode.CARD, new BigDecimal("100.00"), null,
-                        BigDecimal.ZERO.setScale(2), "CARD-1")), null, NOW);
+                        BigDecimal.ZERO.setScale(2), "CARD-1", null, null)), null, NOW);
         StoreDetails store = new StoreDetails(
                 "My Shop", "Owner", "Line 1", " Line 2 ", "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, false, null, "INR", "Asia/Kolkata", "INV",

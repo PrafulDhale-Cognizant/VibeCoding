@@ -46,6 +46,13 @@ public class Payment {
     @Column(name = "payment_reference", length = 100)
     private String reference;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "customer_id", length = 36)
+    private String customerId;
+
+    @Column(name = "customer_name", length = 150)
+    private String customerName;
+
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private Instant recordedAt;
 
@@ -61,6 +68,8 @@ public class Payment {
         payment.tenderedAmount = allocation.tenderedAmount();
         payment.changeAmount = allocation.changeAmount();
         payment.reference = allocation.reference();
+        payment.customerId = allocation.customerId();
+        payment.customerName = allocation.customerName();
         payment.recordedAt = now;
         return payment;
     }
@@ -70,5 +79,7 @@ public class Payment {
     public BigDecimal getTenderedAmount() { return tenderedAmount; }
     public BigDecimal getChangeAmount() { return changeAmount; }
     public String getReference() { return reference; }
+    public String getCustomerId() { return customerId; }
+    public String getCustomerName() { return customerName; }
     public Instant getRecordedAt() { return recordedAt; }
 }

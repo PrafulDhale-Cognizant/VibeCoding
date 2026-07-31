@@ -63,11 +63,14 @@ class MySqlMigrationIT {
                       'invoice_sequences',
                       'invoices',
                       'invoice_items',
-                      'payments'
+                      'payments',
+                      'customers',
+                      'customer_credit_balances',
+                      'khata_ledger_entries'
                   )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(17);
+        assertThat(tableCount).isEqualTo(20);
     }
 }

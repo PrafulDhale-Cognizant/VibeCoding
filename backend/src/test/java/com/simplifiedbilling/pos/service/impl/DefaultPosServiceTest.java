@@ -3,6 +3,8 @@ package com.simplifiedbilling.pos.service.impl;
 import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.inventory.service.CheckoutInventoryService;
 import com.simplifiedbilling.inventory.service.SaleProductSnapshot;
+import com.simplifiedbilling.khata.service.CreditAccountService;
+import com.simplifiedbilling.khata.service.CreditCustomerSnapshot;
 import com.simplifiedbilling.pos.domain.DiscountType;
 import com.simplifiedbilling.pos.domain.Invoice;
 import com.simplifiedbilling.pos.domain.PaymentMode;
@@ -53,6 +55,7 @@ class DefaultPosServiceTest {
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private InvoiceNumberAllocator numberAllocator;
     @Mock private StoreService storeService;
+    @Mock private CreditAccountService creditAccountService;
     @Mock private PosMapper mapper;
     @Mock private AuditWriter auditWriter;
     private DefaultPosService service;
@@ -61,7 +64,7 @@ class DefaultPosServiceTest {
     void setUp() {
         service = new DefaultPosService(
                 inventoryService, pricingEngine, invoiceRepository, numberAllocator,
-                storeService, mapper, auditWriter, Clock.fixed(NOW, ZoneOffset.UTC));
+                storeService, creditAccountService, mapper, auditWriter, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -121,6 +124,28 @@ class DefaultPosServiceTest {
     }
 
     @Test
+    void completesUdhaarCheckoutAndPostsCustomerCreditAfterInvoiceSave() {
+        prepareNewCheckout();
+        StoreDetails store = store();
+        PosResponses.InvoiceResponse response = org.mockito.Mockito.mock(PosResponses.InvoiceResponse.class);
+        when(creditAccountService.getCreditCustomer("customer-1")).thenReturn(
+                new CreditCustomerSnapshot("customer-1", "Ravi", "9876543210", new BigDecimal("25.00")));
+        when(storeService.getStore()).thenReturn(store);
+        when(numberAllocator.next("INV")).thenReturn("INV-000002");
+        when(mapper.toInvoice(any(Invoice.class), eq(store), eq(false))).thenReturn(response);
+
+        var request = checkoutRequest(List.of(new PosRequests.PaymentRequest(
+                PaymentMode.UDHAAR, new BigDecimal("100.00"), null, null, "customer-1")));
+
+        assertThat(service.checkout("actor", KEY, request)).isSameAs(response);
+        ArgumentCaptor<Invoice> invoice = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).saveAndFlush(invoice.capture());
+        assertThat(invoice.getValue().getPayments().getFirst().getCustomerName()).isEqualTo("Ravi");
+        verify(creditAccountService).postCreditSale(
+                "actor", "customer-1", invoice.getValue().getId(), new BigDecimal("100.00"));
+    }
+
+    @Test
     void validatesIdempotencyAndPaymentRules() {
         assertError(() -> service.checkout("actor", "bad key", checkoutRequest(List.of(
                 payment(PaymentMode.CASH, "100", "100", null)))), "INVALID_IDEMPOTENCY_KEY");
@@ -129,7 +154,7 @@ class DefaultPosServiceTest {
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of())), "PAYMENT_REQUIRED");
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(Arrays.asList((PosRequests.PaymentRequest) null))), "INVALID_PAYMENT");
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
-                new PosRequests.PaymentRequest(null, new BigDecimal("100"), null, null)))), "INVALID_PAYMENT");
+                new PosRequests.PaymentRequest(null, new BigDecimal("100"), null, null, null)))), "INVALID_PAYMENT");
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
                 payment(PaymentMode.CASH, "0", "0", null)))), "INVALID_PAYMENT");
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
@@ -138,6 +163,24 @@ class DefaultPosServiceTest {
                 payment(PaymentMode.CASH, "99", "99", null)))), "PAYMENT_TOTAL_MISMATCH");
         assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
                 payment(PaymentMode.CASH, "100.001", "101", null)))), "INVALID_MONEY_PRECISION");
+
+        assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
+                new PosRequests.PaymentRequest(
+                        PaymentMode.UDHAAR, new BigDecimal("100"), null, null, null)))),
+                "CREDIT_CUSTOMER_REQUIRED");
+        assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
+                new PosRequests.PaymentRequest(
+                        PaymentMode.UPI, new BigDecimal("100"), null, null, "customer-1")))),
+                "INVALID_PAYMENT_CUSTOMER");
+
+        when(creditAccountService.getCreditCustomer("customer-1")).thenReturn(
+                new CreditCustomerSnapshot("customer-1", "Ravi", "9876543210", BigDecimal.ZERO));
+        assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
+                new PosRequests.PaymentRequest(
+                        PaymentMode.UDHAAR, new BigDecimal("50"), null, null, "customer-1"),
+                new PosRequests.PaymentRequest(
+                        PaymentMode.UDHAAR, new BigDecimal("50"), null, null, "customer-1")))),
+                "MULTIPLE_CREDIT_PAYMENTS");
     }
 
     @Test
@@ -186,7 +229,8 @@ class DefaultPosServiceTest {
                 mode,
                 new BigDecimal(amount),
                 tendered == null ? null : new BigDecimal(tendered),
-                reference);
+                reference,
+                null);
     }
 
     private SaleProductSnapshot product() {

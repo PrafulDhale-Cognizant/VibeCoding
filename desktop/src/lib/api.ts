@@ -3,6 +3,11 @@ import type {
   CategoryResponse,
   InitialSetupRequest,
   InventoryPage,
+  KhataBalanceStatus,
+  KhataCustomerResponse,
+  KhataLedgerEntryResponse,
+  KhataSettlementResponse,
+  KhataSummaryResponse,
   ProductAlertResponse,
   ProductCreateRequest,
   ProductLookupResponse,
@@ -17,6 +22,7 @@ import type {
   StockAdjustmentReasonCode,
   StockStatus,
   StockTransactionResponse,
+  SettlementMode,
   StoreDetails,
   StoreProfile,
   UnitResponse,
@@ -306,5 +312,76 @@ export const api = {
       accessToken
     ),
   getInvoice: (accessToken: string, invoiceId: string) =>
-    request<PosInvoiceResponse>(`/api/v1/pos/invoices/${invoiceId}`, {}, accessToken)
+    request<PosInvoiceResponse>(`/api/v1/pos/invoices/${invoiceId}`, {}, accessToken),
+  searchKhataCustomers: (
+    accessToken: string,
+    filters: {
+      query?: string;
+      active?: boolean | null;
+      balanceStatus?: KhataBalanceStatus;
+      page?: number;
+      size?: number;
+    }
+  ) => {
+    const parameters = new URLSearchParams();
+    if (filters.query?.trim()) parameters.set("query", filters.query.trim());
+    if (filters.active !== null && filters.active !== undefined) {
+      parameters.set("active", String(filters.active));
+    }
+    parameters.set("balanceStatus", filters.balanceStatus ?? "ALL");
+    parameters.set("page", String(filters.page ?? 0));
+    parameters.set("size", String(filters.size ?? 25));
+    return request<InventoryPage<KhataCustomerResponse>>(
+      `/api/v1/khata/customers?${parameters.toString()}`,
+      {},
+      accessToken
+    );
+  },
+  getKhataSummary: (accessToken: string) =>
+    request<KhataSummaryResponse>("/api/v1/khata/summary", {}, accessToken),
+  getKhataCustomer: (accessToken: string, customerId: string) =>
+    request<KhataCustomerResponse>(`/api/v1/khata/customers/${customerId}`, {}, accessToken),
+  createKhataCustomer: (
+    accessToken: string,
+    body: { name: string; phone: string; notes: string }
+  ) => request<KhataCustomerResponse>(
+    "/api/v1/khata/customers",
+    { method: "POST", body: JSON.stringify(body) },
+    accessToken
+  ),
+  updateKhataCustomer: (
+    accessToken: string,
+    customerId: string,
+    body: { name: string; phone: string; notes: string; active: boolean; version: number }
+  ) => request<KhataCustomerResponse>(
+    `/api/v1/khata/customers/${customerId}`,
+    { method: "PUT", body: JSON.stringify(body) },
+    accessToken
+  ),
+  getKhataStatement: (accessToken: string, customerId: string, page = 0, size = 50) =>
+    request<InventoryPage<KhataLedgerEntryResponse>>(
+      `/api/v1/khata/customers/${customerId}/statement?page=${page}&size=${size}`,
+      {},
+      accessToken
+    ),
+  settleKhata: (
+    accessToken: string,
+    customerId: string,
+    idempotencyKey: string,
+    body: {
+      amount: number;
+      paymentMode: SettlementMode;
+      reference: string;
+      notes: string;
+      balanceVersion: number;
+    }
+  ) => request<KhataSettlementResponse>(
+    `/api/v1/khata/customers/${customerId}/settlements`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(body)
+    },
+    accessToken
+  )
 };
