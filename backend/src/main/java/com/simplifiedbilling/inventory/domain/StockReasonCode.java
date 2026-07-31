@@ -8,5 +8,7 @@ public enum StockReasonCode {
     THEFT_LOSS,
     FOUND_STOCK,
     DATA_CORRECTION,
+    SALE,
+    SALE_RETURN,
     OTHER
 }

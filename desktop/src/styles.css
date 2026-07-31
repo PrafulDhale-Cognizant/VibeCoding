@@ -52,7 +52,9 @@ textarea {
   }
 
   .barcode-print-surface,
-  .barcode-print-surface * {
+  .barcode-print-surface *,
+  .receipt-print-surface,
+  .receipt-print-surface * {
     visibility: visible !important;
   }
 
@@ -60,6 +62,14 @@ textarea {
     position: absolute;
     inset: 0;
     display: block !important;
+  }
+
+  .receipt-print-surface {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block !important;
+    background: white;
+    color: black;
   }
 
   .barcode-print-page {
@@ -82,5 +92,9 @@ textarea {
 }
 
 .barcode-print-surface {
+  display: none;
+}
+
+.receipt-print-surface {
   display: none;
 }

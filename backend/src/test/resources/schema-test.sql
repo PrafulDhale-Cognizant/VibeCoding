@@ -16,3 +16,11 @@ CREATE TABLE IF NOT EXISTS internal_barcode_sequences (
 
 MERGE INTO internal_barcode_sequences (sequence_name, next_value)
 KEY (sequence_name) VALUES ('PRODUCT', 1);
+
+CREATE TABLE IF NOT EXISTS invoice_sequences (
+    sequence_name VARCHAR(32) PRIMARY KEY,
+    next_value BIGINT NOT NULL
+);
+
+MERGE INTO invoice_sequences (sequence_name, next_value)
+KEY (sequence_name) VALUES ('INVOICE', 1);

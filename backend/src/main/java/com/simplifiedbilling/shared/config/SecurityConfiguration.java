@@ -41,7 +41,8 @@ import java.util.List;
 @EnableConfigurationProperties({
         SecurityProperties.class,
         JwtProperties.class,
-        LoginSecurityProperties.class
+        LoginSecurityProperties.class,
+        PosProperties.class
 })
 public class SecurityConfiguration {
 

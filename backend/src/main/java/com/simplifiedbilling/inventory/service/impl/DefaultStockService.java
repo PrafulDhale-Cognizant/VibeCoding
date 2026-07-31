@@ -59,11 +59,13 @@ public class DefaultStockService implements StockService {
             String productId,
             StockAdjustmentRequest request) {
 
-        if (request.reasonCode() == StockReasonCode.OPENING_STOCK) {
+        if (request.reasonCode() == StockReasonCode.OPENING_STOCK
+                || request.reasonCode() == StockReasonCode.SALE
+                || request.reasonCode() == StockReasonCode.SALE_RETURN) {
             throw new ApplicationException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_ADJUSTMENT_REASON",
-                    "OPENING_STOCK can only be used while creating a product.");
+                    "System-generated stock reasons cannot be used for manual adjustments.");
         }
         BigDecimal delta = normalizeDelta(request.quantityDelta());
         if (delta.signum() == 0) {

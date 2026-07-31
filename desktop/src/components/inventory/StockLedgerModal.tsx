@@ -2,13 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../lib/api";
 import type {
   ProductResponse,
-  StockReasonCode,
+  StockAdjustmentReasonCode,
   StockTransactionResponse
 } from "../../types";
 import { ErrorNotice, Field, SelectInput, SuccessNotice, TextInput } from "../FormControls";
 import { InventoryModal } from "./InventoryModal";
 
-const reasonLabels: Record<StockReasonCode, string> = {
+const reasonLabels: Record<StockAdjustmentReasonCode, string> = {
   PHYSICAL_COUNT: "Physical count",
   DAMAGE: "Damaged stock",
   EXPIRY: "Expired stock",
@@ -42,7 +42,7 @@ export function StockLedgerModal({
   const [current, setCurrent] = useState(product);
   const [ledger, setLedger] = useState<StockTransactionResponse[]>([]);
   const [quantityDelta, setQuantityDelta] = useState("");
-  const [reasonCode, setReasonCode] = useState<StockReasonCode>("PHYSICAL_COUNT");
+  const [reasonCode, setReasonCode] = useState<StockAdjustmentReasonCode>("PHYSICAL_COUNT");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,7 +127,7 @@ export function StockLedgerModal({
                 />
               </Field>
               <Field label="Reason">
-                <SelectInput value={reasonCode} onChange={(event) => setReasonCode(event.target.value as StockReasonCode)}>
+                <SelectInput value={reasonCode} onChange={(event) => setReasonCode(event.target.value as StockAdjustmentReasonCode)}>
                   {Object.entries(reasonLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </SelectInput>
               </Field>

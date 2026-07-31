@@ -77,7 +77,7 @@ export type ProductUnit =
 
 export type StockStatus = "ALL" | "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
 export type ProductSort = "NAME_ASC" | "NAME_DESC" | "UPDATED_DESC" | "PRICE_ASC" | "STOCK_ASC";
-export type StockReasonCode =
+export type StockAdjustmentReasonCode =
   | "PHYSICAL_COUNT"
   | "DAMAGE"
   | "EXPIRY"
@@ -85,6 +85,11 @@ export type StockReasonCode =
   | "FOUND_STOCK"
   | "DATA_CORRECTION"
   | "OTHER";
+export type StockReasonCode =
+  | StockAdjustmentReasonCode
+  | "OPENING_STOCK"
+  | "SALE"
+  | "SALE_RETURN";
 
 export interface CategoryResponse {
   id: string;
@@ -185,10 +190,96 @@ export interface StockTransactionResponse {
   transactionType: "OPENING" | "ADJUSTMENT" | "PURCHASE" | "PURCHASE_RETURN" | "SALE" | "SALE_RETURN" | "CORRECTION";
   quantityDelta: number;
   balanceAfter: number;
-  reasonCode: StockReasonCode | "OPENING_STOCK";
+  reasonCode: StockReasonCode;
   referenceType: string | null;
   referenceId: string | null;
   notes: string | null;
   actorUserId: string | null;
   occurredAt: string;
+}
+
+export type DiscountType = "NONE" | "PERCENTAGE" | "FIXED";
+export type TaxMode = "INTRA_STATE" | "INTER_STATE";
+export type PaymentMode = "CASH" | "UPI" | "CARD";
+
+export interface PosCartItemRequest {
+  productId: string;
+  quantity: number;
+  discountType: DiscountType;
+  discountValue: number;
+}
+
+export interface PosQuoteRequest {
+  items: PosCartItemRequest[];
+  billDiscountType: DiscountType;
+  billDiscountValue: number;
+  taxMode: TaxMode;
+}
+
+export interface PosQuoteLine {
+  lineNumber: number;
+  productId: string;
+  name: string;
+  receiptName: string;
+  barcode: string;
+  unit: ProductUnit;
+  quantity: number;
+  availableQuantity: number | null;
+  unitPrice: number;
+  gstRate: number;
+  grossAmount: number;
+  lineDiscountAmount: number;
+  billDiscountAmount: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  lineTotal: number;
+}
+
+export interface PosQuoteResponse {
+  lines: PosQuoteLine[];
+  taxMode: TaxMode;
+  pricesIncludeGst: boolean;
+  subtotalAmount: number;
+  lineDiscountAmount: number;
+  billDiscountAmount: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  roundOffAmount: number;
+  totalAmount: number;
+}
+
+export interface PosPaymentRequest {
+  mode: PaymentMode;
+  amount: number;
+  tenderedAmount?: number;
+  reference?: string;
+}
+
+export interface PosInvoiceResponse {
+  id: string;
+  invoiceNumber: string;
+  status: "COMPLETED" | "CANCELLED";
+  cashierUserId: string;
+  completedAt: string;
+  notes: string | null;
+  store: {
+    shopName: string;
+    address: string;
+    phone: string;
+    gstin: string | null;
+    receiptWidth: ReceiptWidth;
+  };
+  totals: PosQuoteResponse;
+  payments: Array<{
+    mode: PaymentMode;
+    amount: number;
+    tenderedAmount: number | null;
+    changeAmount: number;
+    reference: string | null;
+  }>;
+  idempotentReplay: boolean;
 }

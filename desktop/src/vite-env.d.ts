@@ -12,6 +12,7 @@ interface BillingDesktopBridge {
   loadRefreshToken: () => Promise<string | null>;
   clearRefreshToken: () => Promise<void>;
   printBarcodeLabels: (options: { widthMm: number; heightMm: number }) => Promise<void>;
+  printReceipt: (options: { widthMm: 58 | 80 }) => Promise<void>;
 }
 
 interface Window {

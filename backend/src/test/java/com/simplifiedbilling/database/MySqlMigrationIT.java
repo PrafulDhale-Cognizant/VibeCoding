@@ -59,11 +59,15 @@ class MySqlMigrationIT {
                       'product_barcodes',
                       'inventory_balances',
                       'stock_transactions',
-                      'internal_barcode_sequences'
+                      'internal_barcode_sequences',
+                      'invoice_sequences',
+                      'invoices',
+                      'invoice_items',
+                      'payments'
                   )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(13);
+        assertThat(tableCount).isEqualTo(17);
     }
 }

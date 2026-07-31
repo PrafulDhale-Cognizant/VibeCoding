@@ -9,8 +9,12 @@ import type {
   ProductResponse,
   ProductSort,
   ProductUpdateRequest,
+  PosInvoiceResponse,
+  PosPaymentRequest,
+  PosQuoteRequest,
+  PosQuoteResponse,
   SetupStatus,
-  StockReasonCode,
+  StockAdjustmentReasonCode,
   StockStatus,
   StockTransactionResponse,
   StoreDetails,
@@ -254,7 +258,7 @@ export const api = {
     productId: string,
     body: {
       quantityDelta: number;
-      reasonCode: StockReasonCode;
+      reasonCode: StockAdjustmentReasonCode;
       notes: string;
       stockVersion: number;
     }
@@ -280,5 +284,27 @@ export const api = {
       `/api/v1/inventory/stock-alerts?status=${status}&page=${page}&size=${size}`,
       {},
       accessToken
-    )
+    ),
+  quoteSale: (accessToken: string, body: PosQuoteRequest) =>
+    request<PosQuoteResponse>(
+      "/api/v1/pos/quote",
+      { method: "POST", body: JSON.stringify(body) },
+      accessToken
+    ),
+  checkoutSale: (
+    accessToken: string,
+    idempotencyKey: string,
+    body: PosQuoteRequest & { payments: PosPaymentRequest[]; notes: string }
+  ) =>
+    request<PosInvoiceResponse>(
+      "/api/v1/pos/checkout",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(body)
+      },
+      accessToken
+    ),
+  getInvoice: (accessToken: string, invoiceId: string) =>
+    request<PosInvoiceResponse>(`/api/v1/pos/invoices/${invoiceId}`, {}, accessToken)
 };

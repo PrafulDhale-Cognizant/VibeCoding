@@ -4,7 +4,7 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication** and **Inventory Management** modules:
+Authentication**, **Inventory Management**, and first **Point of Sale** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -15,12 +15,16 @@ Authentication** and **Inventory Management** modules:
 - consistent API errors and request correlation IDs
 - category, product, barcode, inventory-balance and immutable stock-ledger services
 - paged product search, low-stock alerts and locked stock adjustments
-- React 19 and Tailwind CSS setup, login, inventory, settings, users, and account screens
+- server-authoritative POS quotes, GST, discounts, rounding and idempotent checkout
+- atomically locked sale deductions, immutable invoices, line snapshots and payment records
+- scanner-first 70/30 POS workspace with Cash, UPI and Card collection
+- 58 mm and 80 mm thermal receipt preview and operating-system printing
+- React 19 and Tailwind CSS setup, login, POS, inventory, settings, users, and account screens
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Purchases, POS, Khata and reports remain separate implementation milestones.
+Purchases, Khata, dashboard reports and backup/restore remain separate implementation milestones.
 
 ## Documentation
 
@@ -281,8 +285,8 @@ generated at `backend/target/site/jacoco/index.html`.
 
 | Metric | Current coverage | Enforced gate |
 |---|---:|---:|
-| Lines | 98.79% | 90% |
-| Branches | 87.45% | 80% |
+| Lines | 99.06% | 90% |
+| Branches | 87.26% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -356,6 +360,8 @@ Output is written to `desktop/release/`.
 | `BILLING_JWT_SECRET_BASE64` | Recommended | Development-only fallback | Base64 HMAC secret; decode length must be at least 32 bytes |
 | `BILLING_ACCESS_TOKEN_TTL` | No | `15m` | Short-lived access-token duration |
 | `BILLING_REFRESH_TOKEN_TTL` | No | `7d` | Maximum rotating session duration |
+| `BILLING_PRICES_INCLUDE_GST` | No | `true` | Treat retail selling prices as GST-inclusive |
+| `BILLING_ROUND_PAYABLE` | No | `true` | Round final cash payable to the nearest rupee |
 
 ## Database migrations
 
@@ -388,7 +394,11 @@ The current migrations create:
 - `billing.inventory_balances`
 - `billing.stock_transactions`
 - `billing.internal_barcode_sequences`
-- supporting audit, catalog, barcode and stock-ledger indexes
+- `billing.invoice_sequences`
+- `billing.invoices`
+- `billing.invoice_items`
+- `billing.payments`
+- supporting audit, catalog, barcode, stock-ledger and invoice indexes
 
 ## Store setup and authentication API
 
@@ -453,6 +463,35 @@ Existing products also provide a `Print label` action in the product table. The 
 Printing opens the operating-system dialog so the operator can select the installed barcode or
 thermal printer. Configure the printer driver for 100% scale, zero margins and the same paper size
 selected in the application.
+
+## Point of Sale API and desktop workflow
+
+POS endpoints are available to Owner, Admin and Cashier roles. The backend is authoritative for
+all prices, GST, discount allocation, rounding and payment validation; renderer totals are never
+trusted during checkout.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/pos/quote` | Recalculate a cart using current product and tax data |
+| `POST` | `/api/v1/pos/checkout` | Atomically save the invoice, payments, stock deductions and ledger entries |
+| `GET` | `/api/v1/pos/invoices/{invoiceId}` | Retrieve an immutable invoice and receipt snapshot |
+
+Every checkout requires an `Idempotency-Key` header containing 8-80 safe characters. Retrying a
+completed request with the same key returns the existing invoice rather than deducting stock
+again. Cart products are pessimistically locked in sorted ID order and every deduction creates a
+`SALE` stock-ledger entry referencing the invoice.
+
+The desktop POS uses a 70/30 cart and totals layout. Scanner input remains focused after item
+entry and scanners that terminate with Enter add the item immediately. Keyboard shortcuts are:
+
+- `F1`: focus barcode/product search
+- `F2`: open payment collection
+- `F4`: save/print the current bill, or reprint the completed receipt
+- `Esc`: clear the current cart after confirmation
+
+Cash, UPI and Card are implemented. The backend supports split payment records, while the first
+desktop workflow collects one mode per bill. Udhaar is deliberately deferred until the Khata
+module can create the customer credit ledger in the same transaction.
 
 ## Backend module conventions
 
@@ -555,11 +594,11 @@ Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
 ## Next implementation milestone
 
-The inventory backend and desktop workspace are complete. The next core slice is **Point of Sale**:
+Store setup, authentication, inventory and the first POS slice are complete. The next core slice is
+**Khata (customer credit management)**:
 
-1. scanner-first product lookup and cart state
-2. 70/30 keyboard-friendly POS layout
-3. server-authoritative discount, GST and rounding calculations
-4. locked, idempotent checkout with atomic stock deduction
-5. cash, UPI, card and Udhaar payment workflows
-6. 58 mm and 80 mm thermal receipt rendering
+1. customer identity and phone-based lookup
+2. append-only credit/debit ledger
+3. Udhaar checkout posted atomically with the invoice
+4. full and partial due settlement
+5. customer statement and overdue balance views

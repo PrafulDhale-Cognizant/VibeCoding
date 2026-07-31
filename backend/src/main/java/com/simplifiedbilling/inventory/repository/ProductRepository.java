@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, String> {
 
@@ -19,6 +21,10 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @EntityGraph(attributePaths = {"category", "barcode", "stockBalance"})
     @Query("select p from Product p join p.barcode b where b.value = :barcode")
     Optional<Product> findDetailedByBarcode(@Param("barcode") String barcode);
+
+    @EntityGraph(attributePaths = {"category", "barcode", "stockBalance"})
+    @Query("select p from Product p where p.id in :ids")
+    List<Product> findDetailedByIdIn(@Param("ids") Collection<String> ids);
 
     @EntityGraph(attributePaths = {"category", "barcode", "stockBalance"})
     @Query(value = """

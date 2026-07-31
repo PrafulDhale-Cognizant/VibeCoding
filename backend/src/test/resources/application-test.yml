@@ -15,6 +15,9 @@ spring:
       schema-locations: classpath:schema-test.sql
 
 billing:
+  pos:
+    prices-include-gst: true
+    round-payable: true
   security:
     allowed-origins:
       - http://127.0.0.1:5173

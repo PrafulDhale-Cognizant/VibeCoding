@@ -140,6 +140,26 @@ class DefaultStockServiceTest {
                         "actor",
                         "product",
                         new StockAdjustmentRequest(
+                                BigDecimal.ONE,
+                                StockReasonCode.SALE,
+                                null,
+                                0)),
+                "INVALID_ADJUSTMENT_REASON");
+        assertError(
+                () -> service.adjustStock(
+                        "actor",
+                        "product",
+                        new StockAdjustmentRequest(
+                                BigDecimal.ONE,
+                                StockReasonCode.SALE_RETURN,
+                                null,
+                                0)),
+                "INVALID_ADJUSTMENT_REASON");
+        assertError(
+                () -> service.adjustStock(
+                        "actor",
+                        "product",
+                        new StockAdjustmentRequest(
                                 BigDecimal.ZERO,
                                 StockReasonCode.OTHER,
                                 null,

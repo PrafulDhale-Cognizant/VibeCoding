@@ -45,6 +45,9 @@ server:
     include-stacktrace: never
 
 billing:
+  pos:
+    prices-include-gst: ${BILLING_PRICES_INCLUDE_GST:true}
+    round-payable: ${BILLING_ROUND_PAYABLE:true}
   security:
     allowed-origins:
       - http://127.0.0.1:5173

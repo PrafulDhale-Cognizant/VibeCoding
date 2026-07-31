@@ -252,6 +252,27 @@ if (!hasSingleInstanceLock) {
         );
       });
     });
+    ipcMain.handle("billing:print:receipt", (event, options) => {
+      assertTrustedIpcSender(event);
+      const widthMm = Number(options?.widthMm);
+      if (widthMm !== 58 && widthMm !== 80) {
+        throw new Error("Receipt width must be 58 mm or 80 mm.");
+      }
+      return new Promise((resolve, reject) => {
+        event.sender.print(
+          {
+            silent: false,
+            printBackground: false,
+            margins: { marginType: "none" },
+            pageSize: { width: widthMm * 1000, height: 297000 }
+          },
+          (success, failureReason) => {
+            if (success) resolve();
+            else reject(new Error(failureReason || "Receipt printing was cancelled or failed."));
+          }
+        );
+      });
+    });
 
     startBackendIfConfigured();
     createWindow();
