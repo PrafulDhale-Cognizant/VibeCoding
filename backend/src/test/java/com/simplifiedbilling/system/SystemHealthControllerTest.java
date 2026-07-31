@@ -1,6 +1,9 @@
 package com.simplifiedbilling.system;
 
 import com.simplifiedbilling.shared.config.SecurityConfiguration;
+import com.simplifiedbilling.system.controller.SystemHealthController;
+import com.simplifiedbilling.system.dto.SystemHealthResponse;
+import com.simplifiedbilling.system.service.SystemHealthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -50,6 +53,7 @@ class SystemHealthControllerTest {
     @Test
     void deniesUnconfiguredEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/private"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
     }
 }

@@ -1,5 +1,6 @@
-package com.simplifiedbilling.system;
+package com.simplifiedbilling.system.service;
 
+import com.simplifiedbilling.system.dto.SystemHealthResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,4 +37,3 @@ public class SystemHealthService {
                 Instant.now());
     }
 }
-

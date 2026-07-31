@@ -6,13 +6,26 @@ spring:
   flyway:
     enabled: false
   jpa:
+    defer-datasource-initialization: true
     hibernate:
-      ddl-auto: none
+      ddl-auto: create-drop
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-test.sql
 
 billing:
   security:
     allowed-origins:
       - http://127.0.0.1:5173
+    jwt:
+      issuer: simplified-billing-test
+      secret-base64: dGVzdC1qd3Qtc2VjcmV0LXdpdGgtYXQtbGVhc3QtMzItYnl0ZXM=
+      access-token-ttl: 15m
+      refresh-token-ttl: 7d
+    login:
+      max-failed-attempts: 5
+      lock-duration: 15m
 
 logging:
   file:

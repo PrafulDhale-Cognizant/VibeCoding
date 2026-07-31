@@ -8,9 +8,11 @@ interface BillingRuntimeInfo {
 
 interface BillingDesktopBridge {
   getRuntimeInfo: () => Promise<BillingRuntimeInfo>;
+  storeRefreshToken: (rawToken: string) => Promise<void>;
+  loadRefreshToken: () => Promise<string | null>;
+  clearRefreshToken: () => Promise<void>;
 }
 
 interface Window {
   billingDesktop?: BillingDesktopBridge;
 }
-

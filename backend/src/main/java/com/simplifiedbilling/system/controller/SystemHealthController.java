@@ -1,4 +1,7 @@
-package com.simplifiedbilling.system;
+package com.simplifiedbilling.system.controller;
+
+import com.simplifiedbilling.system.dto.SystemHealthResponse;
+import com.simplifiedbilling.system.service.SystemHealthService;
 
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -23,4 +26,3 @@ public class SystemHealthController {
                 .body(healthService.getHealth());
     }
 }
-

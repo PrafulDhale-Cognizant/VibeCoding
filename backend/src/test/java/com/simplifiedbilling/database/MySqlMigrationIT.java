@@ -46,10 +46,17 @@ class MySqlMigrationIT {
                 SELECT COUNT(*)
                 FROM information_schema.tables
                 WHERE table_schema = DATABASE()
-                  AND table_name IN ('app_settings', 'audit_events')
+                  AND table_name IN (
+                      'app_settings',
+                      'audit_events',
+                      'shop_profiles',
+                      'users',
+                      'user_roles',
+                      'refresh_tokens'
+                  )
                 """,
                 Integer.class);
 
-        assertThat(tableCount).isEqualTo(2);
+        assertThat(tableCount).isEqualTo(6);
     }
 }

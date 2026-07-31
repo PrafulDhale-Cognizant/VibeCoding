@@ -20,6 +20,7 @@ desktop/node_modules/
 desktop/dist/
 desktop/release/
 desktop/.vite/
+desktop/.electron-cache/
 
 # Local runtime data
 data/
@@ -30,4 +31,3 @@ exports/
 coverage/
 test-results/
 playwright-report/
-

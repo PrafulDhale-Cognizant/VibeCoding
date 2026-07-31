@@ -5,8 +5,8 @@ spring:
     timeout-per-shutdown-phase: 20s
   datasource:
     url: ${BILLING_DB_URL:jdbc:mysql://127.0.0.1:3306/billing?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: root
-    password: root
+    username: ${BILLING_DB_USERNAME:billing_app}
+    password: ${BILLING_DB_PASSWORD}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 1
@@ -18,7 +18,6 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        default_catalog: billing
         jdbc:
           time_zone: UTC
   flyway:
@@ -32,6 +31,10 @@ spring:
   mvc:
     problemdetails:
       enabled: false
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
 
 server:
   address: ${BILLING_SERVER_ADDRESS:127.0.0.1}
@@ -47,6 +50,14 @@ billing:
       - http://127.0.0.1:5173
       - http://localhost:5173
       - billing://app
+    jwt:
+      issuer: ${BILLING_JWT_ISSUER:simplified-billing-desktop}
+      secret-base64: ${BILLING_JWT_SECRET_BASE64:Y2hhbmdlLW1lLWJlZm9yZS1wcm9kdWN0aW9uLXNlY3JldC0zMmI=}
+      access-token-ttl: ${BILLING_ACCESS_TOKEN_TTL:15m}
+      refresh-token-ttl: ${BILLING_REFRESH_TOKEN_TTL:7d}
+    login:
+      max-failed-attempts: 5
+      lock-duration: 15m
 
 management:
   endpoints:

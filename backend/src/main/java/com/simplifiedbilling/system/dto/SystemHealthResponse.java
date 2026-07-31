@@ -1,4 +1,4 @@
-package com.simplifiedbilling.system;
+package com.simplifiedbilling.system.dto;
 
 import java.time.Instant;
 
@@ -10,4 +10,3 @@ public record SystemHealthResponse(
         String javaVersion,
         Instant timestamp) {
 }
-

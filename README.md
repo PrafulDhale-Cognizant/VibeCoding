@@ -3,19 +3,22 @@
 An offline-first, desktop-installable billing and inventory application for small retail and
 grocery shops.
 
-This repository currently contains the **technical foundation milestone**:
+This repository contains the technical foundation and the completed **Store Setup &
+Authentication** module:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
-- deny-by-default Spring Security configuration
+- first-run shop/GST/receipt configuration and owner bootstrap
+- Spring Security JWT access tokens and rotating, hashed refresh tokens
+- BCrypt password hashing, login throttling, roles, and local user administration
+- shop settings and receipt-logo management with optimistic concurrency
 - consistent API errors and request correlation IDs
-- React 19 and Tailwind CSS desktop renderer
+- React 19 and Tailwind CSS setup, login, settings, users, and account screens
 - security-hardened Electron shell
-- local backend/database readiness screen
+- operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
 
-Store setup, JWT authentication, inventory, purchases, POS, Khata and reports will be added in
-separate implementation milestones.
+Inventory, purchases, POS, Khata and reports remain separate implementation milestones.
 
 ## Documentation
 
@@ -179,9 +182,14 @@ $env:BILLING_DB_USERNAME = "billing_app"
 $env:BILLING_DB_PASSWORD = "the-password-you-configured"
 $env:BILLING_SERVER_ADDRESS = "127.0.0.1"
 $env:BILLING_SERVER_PORT = "8080"
+$jwtBytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
+$env:BILLING_JWT_SECRET_BASE64 = [Convert]::ToBase64String($jwtBytes)
 ```
 
-The backend intentionally has no default database password.
+Keep the generated JWT secret for this installation. Changing it signs out every current access
+token; users can sign in again with their passwords. The backend intentionally has no default
+database password.
 
 ### 5. Run the backend
 
@@ -208,8 +216,8 @@ Expected shape:
 }
 ```
 
-Only health endpoints are public in the current milestone. Other backend endpoints are denied
-until JWT authentication is implemented.
+Health, setup status, one-time setup, login, refresh, and logout are public. Every business,
+settings, account, and user-management endpoint requires a valid JWT access token.
 
 ### 6. Install desktop dependencies
 
@@ -241,6 +249,14 @@ The readiness panel should display:
 - Application: `development`
 - Java: `21`
 
+On the first successful connection, the desktop application opens a one-time setup wizard instead
+of the sign-in page. Enter the shop identity, address, GST status, receipt defaults, and first owner
+account. The backend creates the shop and owner in one serializable transaction. If either write
+fails, neither record is kept.
+
+After setup, sign-in/session restoration and all settings APIs require authentication. The public
+setup endpoint rejects every later bootstrap attempt.
+
 ## Build and test
 
 ### Backend tests
@@ -249,8 +265,22 @@ The readiness panel should display:
 mvn -f backend/pom.xml test
 ```
 
-Fast context tests use an isolated H2 test profile. Additional repository and concurrency tests
-will be added with inventory and billing.
+Fast context and MVC integration tests use an isolated H2 test profile. Service and controller
+tests use JUnit 5, AssertJ, Mockito, and Spring MVC test utilities.
+
+Run release verification with the mandatory coverage gate:
+
+```powershell
+mvn -f backend/pom.xml clean verify
+```
+
+The build fails below 90% backend line coverage or 80% branch coverage. The HTML report is
+generated at `backend/target/site/jacoco/index.html`.
+
+| Metric | Current coverage | Enforced gate |
+|---|---:|---:|
+| Lines | 98.01% | 90% |
+| Branches | 83.82% | 80% |
 
 To apply the real Flyway migration to a disposable MySQL 8.4 container, start Docker and run:
 
@@ -320,6 +350,10 @@ Output is written to `desktop/release/`.
 | `BILLING_API_BASE_URL` | No | `http://127.0.0.1:8080` | Electron renderer API location |
 | `BILLING_BACKEND_JAR` | No | Packaged resource path | Optional backend JAR to launch from Electron |
 | `BILLING_LOG_FILE` | No | `logs/billing-backend.log` | Backend rolling-log location |
+| `BILLING_JWT_ISSUER` | No | `simplified-billing-desktop` | Expected JWT issuer |
+| `BILLING_JWT_SECRET_BASE64` | Recommended | Development-only fallback | Base64 HMAC secret; decode length must be at least 32 bytes |
+| `BILLING_ACCESS_TOKEN_TTL` | No | `15m` | Short-lived access-token duration |
+| `BILLING_REFRESH_TOKEN_TTL` | No | `7d` | Maximum rotating session duration |
 
 ## Database migrations
 
@@ -337,30 +371,59 @@ Rules:
 4. Test migrations against MySQL before release.
 5. Create a verified backup before installer upgrades apply migrations.
 
-The current baseline creates:
+The current migrations create:
 
 - `billing.app_settings`
 - `billing.audit_events`
+- `billing.shop_profiles`
+- `billing.users`
+- `billing.user_roles`
+- `billing.refresh_tokens`
 - supporting audit indexes
+
+## Store setup and authentication API
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/setup/status` | Public | Determine whether first-run setup is required |
+| `POST` | `/api/v1/setup` | Public until configured | Atomically create the shop and first owner |
+| `POST` | `/api/v1/auth/login` | Public | Verify local credentials and create a session |
+| `POST` | `/api/v1/auth/refresh` | Public | Rotate a refresh token and issue a new access token |
+| `POST` | `/api/v1/auth/logout` | Public | Revoke the supplied refresh token |
+| `GET` | `/api/v1/auth/me` | Authenticated | Return the current user |
+| `POST` | `/api/v1/auth/change-password` | Authenticated | Change password and revoke all refresh tokens |
+| `GET/PUT` | `/api/v1/store` | Authenticated / Owner or Admin | Read or update shop settings |
+| `GET/PUT/DELETE` | `/api/v1/store/logo` | Authenticated / Owner or Admin | Read, upload, or remove receipt logo |
+| `GET/POST/PATCH` | `/api/v1/users` | Owner or Admin | List, create, or update local users |
+| `POST` | `/api/v1/users/{id}/reset-password` | Owner or Admin | Reset a user password and revoke sessions |
+
+The first account receives `OWNER` and `ADMIN`. Supported roles are `OWNER`, `ADMIN`, `CASHIER`,
+`INVENTORY_MANAGER`, and `VIEWER`. Only an owner can create or modify another owner, the signed-in
+user cannot deactivate themselves, and the last active owner cannot be removed.
 
 ## Backend module conventions
 
 Business modules use package-by-feature:
 
 ```text
-com.simplifiedbilling.<module>
-├── controller
-├── dto
-├── service
-├── domain
-└── repository
+com.simplifiedbilling.<module>/
+|-- controller/
+|-- dto/
+|-- mapper/
+|-- service/
+|   `-- impl/
+|-- domain/
+`-- repository/
 ```
 
 Architecture rules:
 
+- `controller/` depends on service interfaces and DTOs, never repositories or implementations
+- `service/` contains use-case contracts; `service/impl/` owns transactions and orchestration
+- `mapper/` owns API/domain conversion; domain entities do not import DTOs
 - controllers handle HTTP concerns only
 - DTOs are used at API boundaries
-- transaction boundaries belong in application services
+- transaction boundaries belong in service implementations
 - modules communicate through service interfaces
 - one module must not access another module's repository
 - financial and stock history is reversed, not deleted
@@ -375,6 +438,7 @@ Architecture rules:
 - runtime permissions are denied by default
 - production assets use the private `billing://app` protocol
 - the renderer receives only a narrow runtime-information bridge
+- refresh tokens are encrypted with Electron `safeStorage`; access tokens remain in renderer memory
 - the backend and database bind to loopback in the default profile
 
 Do not expose generic filesystem, shell or arbitrary IPC execution methods to React components.
@@ -424,15 +488,25 @@ change both the Vite port and `BILLING_RENDERER_URL` together.
 Electron downloads a platform binary during `npm ci`. Check proxy/firewall configuration and retry
 from a network that permits the npm registry and Electron release downloads.
 
+On Windows networks with a corporate certificate authority, allow Node.js to use the Windows
+certificate store before retrying Electron's binary installer:
+
+```powershell
+$env:NODE_USE_SYSTEM_CA = "1"
+Set-Location desktop
+npm exec -- install-electron --no
+npm run dev
+```
+
+Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
+
 ## Next implementation milestone
 
-The next milestone is **Store Setup and Authentication**:
+The next milestone is **Inventory Management**:
 
-1. shop configuration tables and DTOs
-2. first-run setup state
-3. administrator bootstrap
-4. BCrypt/Argon2 password storage
-5. JWT access and refresh-token rotation
-6. login, logout and password-change APIs
-7. desktop login and first-run setup screens
-8. security and integration tests
+1. category, unit, product, barcode, and stock-ledger schema
+2. product DTOs and CRUD APIs
+3. custom barcode allocation
+4. stock adjustments with reason codes
+5. low-stock queries and notifications
+6. inventory desktop screens and tests

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, net, protocol, session } = require("electron");
+const { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -24,6 +24,54 @@ protocol.registerSchemesAsPrivileged([
 
 function getApiBaseUrl() {
   return process.env.BILLING_API_BASE_URL || DEFAULT_API_BASE_URL;
+}
+
+function getSessionFilePath() {
+  return path.join(app.getPath("userData"), "secure-session.bin");
+}
+
+function assertTrustedIpcSender(event) {
+  const senderUrl = event.senderFrame?.url || "";
+  const developmentUrl = process.env.BILLING_RENDERER_URL;
+  const trusted = developmentUrl
+    ? senderUrl.startsWith(developmentUrl)
+    : senderUrl.startsWith(APPLICATION_ORIGIN);
+
+  if (!trusted) {
+    throw new Error("Untrusted renderer.");
+  }
+}
+
+function storeRefreshToken(rawToken) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error("Operating-system credential encryption is unavailable.");
+  }
+
+  const encrypted = safeStorage.encryptString(rawToken);
+  const sessionPath = getSessionFilePath();
+  fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+  fs.writeFileSync(sessionPath, encrypted, { mode: 0o600 });
+}
+
+function loadRefreshToken() {
+  const sessionPath = getSessionFilePath();
+  if (!fs.existsSync(sessionPath) || !safeStorage.isEncryptionAvailable()) {
+    return null;
+  }
+
+  try {
+    return safeStorage.decryptString(fs.readFileSync(sessionPath));
+  } catch (error) {
+    console.error("Stored session could not be decrypted.", error);
+    return null;
+  }
+}
+
+function clearRefreshToken() {
+  const sessionPath = getSessionFilePath();
+  if (fs.existsSync(sessionPath)) {
+    fs.unlinkSync(sessionPath);
+  }
 }
 
 function resolveJavaExecutable() {
@@ -152,11 +200,29 @@ if (!hasSingleInstanceLock) {
       callback(false);
     });
 
-    ipcMain.handle("billing:get-runtime-info", () => ({
+    ipcMain.handle("billing:get-runtime-info", (event) => {
+      assertTrustedIpcSender(event);
+      return {
       applicationVersion: app.getVersion(),
       platform: process.platform,
       apiBaseUrl: getApiBaseUrl()
-    }));
+      };
+    });
+    ipcMain.handle("billing:session:store", (event, rawToken) => {
+      assertTrustedIpcSender(event);
+      if (typeof rawToken !== "string" || rawToken.length < 32 || rawToken.length > 512) {
+        throw new Error("Invalid session token.");
+      }
+      storeRefreshToken(rawToken);
+    });
+    ipcMain.handle("billing:session:load", (event) => {
+      assertTrustedIpcSender(event);
+      return loadRefreshToken();
+    });
+    ipcMain.handle("billing:session:clear", (event) => {
+      assertTrustedIpcSender(event);
+      clearRefreshToken();
+    });
 
     startBackendIfConfigured();
     createWindow();
@@ -179,4 +245,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-
