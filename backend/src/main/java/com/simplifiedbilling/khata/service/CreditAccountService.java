@@ -12,4 +12,12 @@ public interface CreditAccountService {
             String customerId,
             String invoiceId,
             BigDecimal amount);
+
+    void reverseCreditSale(
+            String actorUserId,
+            String customerId,
+            String invoiceId,
+            String saleReturnId,
+            BigDecimal amount,
+            boolean cancellation);
 }

@@ -45,8 +45,12 @@ public class KhataLedgerEntry implements Persistable<String> {
     private BigDecimal balanceAfter;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "invoice_id", length = 36, unique = true, updatable = false)
+    @Column(name = "invoice_id", length = 36, updatable = false)
     private String invoiceId;
+
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "sale_return_id", length = 36, unique = true, updatable = false)
+    private String saleReturnId;
 
     @Column(name = "idempotency_key", length = 80, unique = true, updatable = false)
     private String idempotencyKey;
@@ -83,7 +87,7 @@ public class KhataLedgerEntry implements Persistable<String> {
             String actorUserId,
             Instant now) {
         return create(customer, KhataEntryType.CREDIT_SALE, amount, balanceAfter,
-                invoiceId, null, null, null, "Udhaar sale", actorUserId, now);
+                invoiceId, null, null, null, null, "Udhaar sale", actorUserId, now);
     }
 
     public static KhataLedgerEntry settlement(
@@ -97,7 +101,16 @@ public class KhataLedgerEntry implements Persistable<String> {
             String actorUserId,
             Instant now) {
         return create(customer, KhataEntryType.SETTLEMENT, amount, balanceAfter,
-                null, idempotencyKey, paymentMode, paymentReference, notes, actorUserId, now);
+                null, null, idempotencyKey, paymentMode, paymentReference, notes, actorUserId, now);
+    }
+
+    public static KhataLedgerEntry saleReversal(
+            Customer customer, BigDecimal amount, BigDecimal balanceAfter, String invoiceId,
+            String saleReturnId, boolean cancellation, String actorUserId, Instant now) {
+        return create(customer,
+                cancellation ? KhataEntryType.CANCELLATION : KhataEntryType.SALE_RETURN,
+                amount, balanceAfter, invoiceId, saleReturnId, null, null, null,
+                cancellation ? "Invoice cancellation" : "Customer return", actorUserId, now);
     }
 
     private static KhataLedgerEntry create(
@@ -106,6 +119,7 @@ public class KhataLedgerEntry implements Persistable<String> {
             BigDecimal amount,
             BigDecimal balanceAfter,
             String invoiceId,
+            String saleReturnId,
             String idempotencyKey,
             SettlementMode paymentMode,
             String paymentReference,
@@ -119,6 +133,7 @@ public class KhataLedgerEntry implements Persistable<String> {
         entry.amount = amount;
         entry.balanceAfter = balanceAfter;
         entry.invoiceId = invoiceId;
+        entry.saleReturnId = saleReturnId;
         entry.idempotencyKey = idempotencyKey;
         entry.paymentMode = paymentMode;
         entry.paymentReference = paymentReference;
@@ -141,6 +156,7 @@ public class KhataLedgerEntry implements Persistable<String> {
     public BigDecimal getAmount() { return amount; }
     public BigDecimal getBalanceAfter() { return balanceAfter; }
     public String getInvoiceId() { return invoiceId; }
+    public String getSaleReturnId() { return saleReturnId; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public SettlementMode getPaymentMode() { return paymentMode; }
     public String getPaymentReference() { return paymentReference; }

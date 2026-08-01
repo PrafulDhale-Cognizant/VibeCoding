@@ -11,6 +11,7 @@ import com.simplifiedbilling.inventory.repository.StockTransactionRepository;
 import com.simplifiedbilling.inventory.service.CheckoutInventoryService;
 import com.simplifiedbilling.inventory.service.SaleProductSnapshot;
 import com.simplifiedbilling.inventory.service.SaleStockRequest;
+import com.simplifiedbilling.inventory.service.SaleReturnStockRequest;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -122,6 +123,38 @@ public class DefaultCheckoutInventoryService implements CheckoutInventoryService
         }
         balanceRepository.flush();
         return items.stream().map(item -> results.get(item.productId())).toList();
+    }
+
+    @Override
+    @Transactional
+    public void restoreSaleableReturns(
+            String actorUserId,
+            String saleReturnId,
+            List<SaleReturnStockRequest> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Map<String, BigDecimal> quantities = new HashMap<>();
+        for (SaleReturnStockRequest item : items) {
+            BigDecimal quantity = normalizeQuantity(item.quantity());
+            quantities.merge(item.productId(), quantity, BigDecimal::add);
+        }
+        List<String> sortedIds = quantities.keySet().stream().sorted().toList();
+        List<InventoryBalance> balances = balanceRepository.findAllByProductIdsForUpdate(sortedIds);
+        if (balances.size() != sortedIds.size()) {
+            throw productNotFound();
+        }
+        Instant now = Instant.now(clock);
+        for (InventoryBalance balance : balances) {
+            BigDecimal quantity = quantities.get(balance.getProduct().getId());
+            validateUnitQuantity(quantity, balance.getProduct());
+            BigDecimal balanceAfter = balance.adjust(quantity, now);
+            transactionRepository.save(StockTransaction.create(
+                    balance.getProduct(), StockTransactionType.SALE_RETURN, quantity, balanceAfter,
+                    StockReasonCode.SALE_RETURN, "SALE_RETURN", saleReturnId,
+                    "Saleable stock restored from customer return", actorUserId, now));
+        }
+        balanceRepository.flush();
     }
 
     private List<String> distinctIds(Collection<String> productIds) {

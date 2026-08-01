@@ -16,13 +16,14 @@ import {
 } from "./FormControls";
 import { InventoryPanel } from "./inventory/InventoryPanel";
 import { PosPanel } from "./pos/PosPanel";
+import { SalesReturnsPanel } from "./pos/SalesReturnsPanel";
 import { KhataPanel } from "./khata/KhataPanel";
 import { ReportsPanel } from "./reports/ReportsPanel";
 import { PurchasingPanel } from "./purchasing/PurchasingPanel";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { ThemeSettings } from "./ThemeSettings";
 
-type Section = "home" | "pos" | "khata" | "inventory" | "purchases" | "reports" | "store" | "users" | "account";
+type Section = "home" | "pos" | "returns" | "khata" | "inventory" | "purchases" | "reports" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -68,6 +69,7 @@ export function Workspace({
   const navigation: Array<{ id: Section; label: string; visible: boolean; icon: AppIconName }> = [
     { id: "home", label: "Home", visible: true, icon: "home" },
     { id: "pos", label: "Point of sale", visible: canUsePos, icon: "pos" },
+    { id: "returns", label: "Sales returns", visible: canAdminister, icon: "pos" },
     { id: "khata", label: "Khata", visible: canUsePos, icon: "khata" },
     { id: "inventory", label: "Inventory", visible: canReadInventory, icon: "inventory" },
     { id: "purchases", label: "Purchases & suppliers", visible: canUsePurchasing, icon: "purchases" },
@@ -142,6 +144,8 @@ export function Workspace({
             <p>
                 {section === "pos"
                   ? "Scanner-first checkout"
+                  : section === "returns"
+                    ? "Cancellation, returns & refunds"
                   : section === "khata"
                     ? "Customer credit & settlements"
                   : section === "inventory"
@@ -163,6 +167,7 @@ export function Workspace({
         <main className={`md-content ${section === "pos" ? "p-5" : "p-8"}`}>
           {section === "home" && <HomePanel accessToken={session.accessToken} user={session.user} />}
           {section === "pos" && canUsePos && <PosPanel accessToken={session.accessToken} />}
+          {section === "returns" && canAdminister && <SalesReturnsPanel accessToken={session.accessToken} />}
           {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}
           {section === "inventory" && canReadInventory && (
             <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />

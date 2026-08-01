@@ -22,6 +22,9 @@ import type {
   PurchaseSummaryResponse,
   PurchasingSummaryResponse,
   SalesReportResponse,
+  SaleReturnResponse,
+  SaleReturnSourceInvoice,
+  ReturnDisposition,
   PosInvoiceResponse,
   PosPaymentRequest,
   PosQuoteRequest,
@@ -327,6 +330,37 @@ export const api = {
     ),
   getInvoice: (accessToken: string, invoiceId: string) =>
     request<PosInvoiceResponse>(`/api/v1/pos/invoices/${invoiceId}`, {}, accessToken),
+  findSaleReturnSource: (accessToken: string, invoiceNumber: string) =>
+    request<SaleReturnSourceInvoice>(
+      `/api/v1/pos/return-source?${new URLSearchParams({ invoiceNumber }).toString()}`,
+      {}, accessToken
+    ),
+  returnSale: (
+    accessToken: string,
+    invoiceId: string,
+    idempotencyKey: string,
+    body: {
+      items: Array<{ invoiceItemId: string; quantity: number; disposition: ReturnDisposition }>;
+      refunds: PosPaymentRequest[];
+      reason: string;
+    }
+  ) => request<SaleReturnResponse>(
+    `/api/v1/pos/invoices/${invoiceId}/returns`,
+    { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body) },
+    accessToken
+  ),
+  cancelSale: (
+    accessToken: string,
+    invoiceId: string,
+    idempotencyKey: string,
+    body: { refunds: PosPaymentRequest[]; reason: string }
+  ) => request<SaleReturnResponse>(
+    `/api/v1/pos/invoices/${invoiceId}/cancel`,
+    { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body) },
+    accessToken
+  ),
+  getSaleReturn: (accessToken: string, saleReturnId: string) =>
+    request<SaleReturnResponse>(`/api/v1/pos/returns/${saleReturnId}`, {}, accessToken),
   searchKhataCustomers: (
     accessToken: string,
     filters: {

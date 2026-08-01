@@ -14,4 +14,6 @@ public interface KhataLedgerRepository extends JpaRepository<KhataLedgerEntry, S
     Optional<KhataLedgerEntry> findByIdempotencyKey(String idempotencyKey);
 
     boolean existsByInvoiceId(String invoiceId);
+
+    boolean existsBySaleReturnId(String saleReturnId);
 }

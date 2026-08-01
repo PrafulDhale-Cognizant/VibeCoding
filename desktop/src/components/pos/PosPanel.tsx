@@ -21,6 +21,23 @@ interface CartLine {
   discountValue: number;
 }
 
+interface CartDraft {
+  cart: CartLine[];
+  billDiscountType: DiscountType;
+  billDiscountValue: number;
+  taxMode: TaxMode;
+}
+
+interface HeldCart extends CartDraft { id: string; name: string; heldAt: string; }
+
+const ACTIVE_DRAFT_KEY = "simplified-billing.pos.active-draft.v1";
+const HELD_CARTS_KEY = "simplified-billing.pos.held-carts.v1";
+
+function loadStored<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) ?? "") as T; }
+  catch { return fallback; }
+}
+
 const money = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -46,18 +63,20 @@ function productLookup(product: ProductResponse): ProductLookupResponse {
 }
 
 export function PosPanel({ accessToken }: { accessToken: string }) {
+  const recovered = useRef(loadStored<CartDraft | null>(ACTIVE_DRAFT_KEY, null)).current;
   const barcodeInput = useRef<HTMLInputElement>(null);
   const checkoutKey = useRef<string | null>(null);
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(recovered?.cart ?? []);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductResponse[]>([]);
   const [searching, setSearching] = useState(false);
   const [quote, setQuote] = useState<PosQuoteResponse | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [error, setError] = useState("");
-  const [billDiscountType, setBillDiscountType] = useState<DiscountType>("NONE");
-  const [billDiscountValue, setBillDiscountValue] = useState(0);
-  const [taxMode, setTaxMode] = useState<TaxMode>("INTRA_STATE");
+  const [billDiscountType, setBillDiscountType] = useState<DiscountType>(recovered?.billDiscountType ?? "NONE");
+  const [billDiscountValue, setBillDiscountValue] = useState(recovered?.billDiscountValue ?? 0);
+  const [taxMode, setTaxMode] = useState<TaxMode>(recovered?.taxMode ?? "INTRA_STATE");
+  const [heldCarts, setHeldCarts] = useState<HeldCart[]>(() => loadStored(HELD_CARTS_KEY, []));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [invoice, setInvoice] = useState<PosInvoiceResponse | null>(null);
 
@@ -72,6 +91,15 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     billDiscountValue,
     taxMode
   }), [cart, billDiscountType, billDiscountValue, taxMode]);
+
+  useEffect(() => {
+    if (cart.length === 0) localStorage.removeItem(ACTIVE_DRAFT_KEY);
+    else localStorage.setItem(ACTIVE_DRAFT_KEY, JSON.stringify({ cart, billDiscountType, billDiscountValue, taxMode }));
+  }, [cart, billDiscountType, billDiscountValue, taxMode]);
+
+  useEffect(() => {
+    localStorage.setItem(HELD_CARTS_KEY, JSON.stringify(heldCarts));
+  }, [heldCarts]);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -233,6 +261,25 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     setBillDiscountValue(0);
   }
 
+  function holdCart() {
+    if (cart.length === 0) return;
+    const name = window.prompt("Name this held cart", `Cart ${heldCarts.length + 1}`)?.trim();
+    if (!name) return;
+    setHeldCarts((current) => [...current, {
+      id: crypto.randomUUID(), name, heldAt: new Date().toISOString(),
+      cart, billDiscountType, billDiscountValue, taxMode
+    }]);
+    clearCart();
+  }
+
+  function resumeCart(held: HeldCart) {
+    if (cart.length > 0 && !window.confirm("Replace the active cart with this held cart?")) return;
+    setCart(held.cart); setBillDiscountType(held.billDiscountType);
+    setBillDiscountValue(held.billDiscountValue); setTaxMode(held.taxMode);
+    setHeldCarts((current) => current.filter((item) => item.id !== held.id));
+    checkoutKey.current = null; setInvoice(null);
+  }
+
   async function printReceipt(receipt: PosInvoiceResponse) {
     try {
       await new Promise<void>((resolve) => {
@@ -259,13 +306,19 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Active invoice</p>
               <h3 className="mt-1 text-xl font-bold">{cart.length} product{cart.length === 1 ? "" : "s"}</h3>
             </div>
-            <div className="flex gap-2 text-xs font-bold text-slate-500">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+              {cart.length > 0 && <button type="button" onClick={holdCart} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Hold cart</button>}
               <Shortcut label="F1" text="Scan" />
               <Shortcut label="F2" text="Pay" />
               <Shortcut label="F4" text="Save/Print" />
               <Shortcut label="ESC" text="Clear" />
             </div>
           </div>
+
+          {heldCarts.length > 0 && <div className="flex items-center gap-2 border-b border-slate-200 bg-amber-50 px-5 py-2 text-xs">
+            <strong className="text-amber-900">Held:</strong>
+            {heldCarts.map((held) => <button key={held.id} type="button" onClick={() => resumeCart(held)} className="rounded-full bg-white px-3 py-1 font-bold text-amber-900 shadow-sm" title={new Date(held.heldAt).toLocaleString("en-IN")}>{held.name} · {held.cart.length}</button>)}
+          </div>}
 
           {cart.length === 0 ? (
             <div className="grid flex-1 place-items-center px-6 text-center">

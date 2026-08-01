@@ -40,3 +40,11 @@ CREATE TABLE IF NOT EXISTS purchase_return_sequences (
 
 MERGE INTO purchase_return_sequences (sequence_name, next_value)
 KEY (sequence_name) VALUES ('PURCHASE_RETURN', 1);
+
+CREATE TABLE IF NOT EXISTS sale_return_sequences (
+    sequence_name VARCHAR(32) PRIMARY KEY,
+    next_value BIGINT NOT NULL
+);
+
+MERGE INTO sale_return_sequences (sequence_name, next_value)
+KEY (sequence_name) VALUES ('SALE_RETURN', 1);

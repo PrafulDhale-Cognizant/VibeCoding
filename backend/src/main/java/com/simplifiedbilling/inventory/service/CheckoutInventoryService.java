@@ -12,4 +12,9 @@ public interface CheckoutInventoryService {
             String actorUserId,
             String invoiceId,
             List<SaleStockRequest> items);
+
+    void restoreSaleableReturns(
+            String actorUserId,
+            String saleReturnId,
+            List<SaleReturnStockRequest> items);
 }

@@ -103,6 +103,7 @@ public class InvoiceItem {
         return item;
     }
 
+    public String getId() { return id; }
     public int getLineNumber() { return lineNumber; }
     public String getProductId() { return productId; }
     public String getProductName() { return productName; }

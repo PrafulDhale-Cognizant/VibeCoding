@@ -265,7 +265,7 @@ export interface PosPaymentRequest {
 export interface PosInvoiceResponse {
   id: string;
   invoiceNumber: string;
-  status: "COMPLETED" | "CANCELLED";
+  status: "COMPLETED" | "PARTIALLY_RETURNED" | "RETURNED" | "CANCELLED";
   cashierUserId: string;
   completedAt: string;
   notes: string | null;
@@ -290,7 +290,7 @@ export interface PosInvoiceResponse {
 }
 
 export type KhataBalanceStatus = "ALL" | "DUE" | "CLEAR";
-export type KhataEntryType = "CREDIT_SALE" | "SETTLEMENT";
+export type KhataEntryType = "CREDIT_SALE" | "SETTLEMENT" | "SALE_RETURN" | "CANCELLATION";
 export type SettlementMode = "CASH" | "UPI" | "CARD";
 
 export interface KhataCustomerResponse {
@@ -333,6 +333,70 @@ export interface KhataSettlementResponse {
   balanceAfter: number;
   paymentMode: SettlementMode;
   occurredAt: string;
+  idempotentReplay: boolean;
+}
+
+export type ReturnDisposition = "SALEABLE" | "DAMAGED";
+export type SaleReturnType = "RETURN" | "CANCELLATION";
+
+export interface SaleReturnSourceLine {
+  invoiceItemId: string;
+  lineNumber: number;
+  productId: string;
+  productName: string;
+  unit: ProductUnit;
+  soldQuantity: number;
+  returnedQuantity: number;
+  returnableQuantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  returnedAmount: number;
+  returnableAmount: number;
+}
+
+export interface SaleReturnSourceInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: PosInvoiceResponse["status"];
+  completedAt: string;
+  totalAmount: number;
+  returnableTotal: number;
+  payments: PosInvoiceResponse["payments"];
+  items: SaleReturnSourceLine[];
+}
+
+export interface SaleReturnResponse {
+  id: string;
+  returnNumber: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  type: SaleReturnType;
+  reason: string;
+  subtotalAmount: number;
+  discountAmount: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  totalAmount: number;
+  returnedAt: string;
+  items: Array<{
+    invoiceItemId: string;
+    lineNumber: number;
+    productId: string;
+    productName: string;
+    unit: ProductUnit;
+    quantity: number;
+    disposition: ReturnDisposition;
+    grossAmount: number;
+    discountAmount: number;
+    taxableAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    lineTotal: number;
+  }>;
+  refunds: Array<{ mode: PaymentMode; amount: number; reference: string | null; customerId: string | null }>;
   idempotentReplay: boolean;
 }
 

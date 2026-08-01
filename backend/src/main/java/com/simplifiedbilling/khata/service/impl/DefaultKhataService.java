@@ -253,6 +253,32 @@ public class DefaultKhataService implements KhataService, CreditAccountService {
                 Map.of("invoiceId", invoiceId, "amount", amount));
     }
 
+    @Override
+    @Transactional
+    public void reverseCreditSale(
+            String actorUserId, String customerId, String invoiceId, String saleReturnId,
+            BigDecimal requestedAmount, boolean cancellation) {
+        if (ledgerRepository.existsBySaleReturnId(saleReturnId)) {
+            return;
+        }
+        BigDecimal amount = money(requestedAmount);
+        CustomerCreditBalance balance = balanceRepository.findByCustomerIdForUpdate(customerId)
+                .orElseThrow(this::customerNotFound);
+        if (amount.signum() <= 0 || amount.compareTo(balance.getOutstandingAmount()) > 0) {
+            throw new ApplicationException(
+                    HttpStatus.CONFLICT, "KHATA_REVERSAL_EXCEEDS_DUE",
+                    "The Udhaar reversal cannot exceed the customer's current outstanding balance.");
+        }
+        Instant now = Instant.now(clock);
+        BigDecimal balanceAfter = balance.settle(amount, now);
+        ledgerRepository.save(KhataLedgerEntry.saleReversal(
+                balance.getCustomer(), amount, balanceAfter, invoiceId, saleReturnId,
+                cancellation, actorUserId, now));
+        balanceRepository.flush();
+        auditWriter.write(actorUserId, "KHATA_SALE_REVERSED", "CUSTOMER", customerId,
+                Map.of("invoiceId", invoiceId, "saleReturnId", saleReturnId, "amount", amount));
+    }
+
     private Customer requireCustomer(String customerId) {
         return customerRepository.findDetailedById(customerId)
                 .orElseThrow(this::customerNotFound);

@@ -171,4 +171,12 @@ public class Invoice implements Persistable<String> {
     public Instant getCreatedAt() { return createdAt; }
     public List<InvoiceItem> getItems() { return Collections.unmodifiableList(items); }
     public List<Payment> getPayments() { return Collections.unmodifiableList(payments); }
+
+    public void recordReturn(boolean allItemsReturned, boolean cancellation) {
+        if (status == InvoiceStatus.CANCELLED || status == InvoiceStatus.RETURNED) {
+            throw new IllegalStateException("Invoice has already been fully reversed.");
+        }
+        status = cancellation ? InvoiceStatus.CANCELLED
+                : allItemsReturned ? InvoiceStatus.RETURNED : InvoiceStatus.PARTIALLY_RETURNED;
+    }
 }
