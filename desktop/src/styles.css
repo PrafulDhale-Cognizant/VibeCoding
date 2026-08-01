@@ -725,6 +725,21 @@ input[type="radio"] {
   cursor: pointer;
 }
 
+.md-brand-mark.md-brand-logo {
+  overflow: hidden;
+  padding: 3px;
+  background: var(--md-surface-container-lowest);
+  border: 1px solid var(--md-outline-variant);
+}
+
+.md-brand-logo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
 .md-select option {
   background: var(--md-surface-container-lowest);
   color: var(--md-on-surface);

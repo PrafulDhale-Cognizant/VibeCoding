@@ -23,6 +23,7 @@ import { PurchasingPanel } from "./purchasing/PurchasingPanel";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { ThemeSettings } from "./ThemeSettings";
 import { OperationsPanel } from "./OperationsPanel";
+import { STORE_LOGO_UPDATED_EVENT, useStoreLogo } from "../hooks/useStoreLogo";
 
 type Section = "home" | "pos" | "returns" | "khata" | "inventory" | "purchases" | "reports" | "operations" | "store" | "users" | "account";
 
@@ -50,6 +51,7 @@ export function Workspace({
   onPasswordChanged: () => Promise<void>;
 }) {
   const [section, setSection] = useState<Section>("home");
+  const logoUrl = useStoreLogo(session.accessToken);
 
   useEffect(() => {
     const configured = Number(localStorage.getItem("simplified-billing.security.inactivity-minutes") ?? "15");
@@ -108,7 +110,9 @@ export function Workspace({
     <div className="md-app flex min-h-screen">
       <aside className="md-drawer">
         <div className="md-brand">
-          <span className="md-brand-mark">SB</span>
+          <div className={`md-brand-mark ${logoUrl ? "md-brand-logo" : ""}`}>
+            {logoUrl ? <img src={logoUrl} alt="Shop logo" /> : "SB"}
+          </div>
           <div className="min-w-0">
             <strong>Simplified Billing</strong>
             <span>Offline retail workspace</span>
@@ -328,6 +332,7 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
     try {
       const updated = await api.updateLogo(accessToken, file);
       setDetails(updated);
+      window.dispatchEvent(new Event(STORE_LOGO_UPDATED_EVENT));
       setSuccess("Shop logo saved.");
     } catch (caught) {
       setError(messageFrom(caught, "Logo could not be uploaded."));
@@ -339,6 +344,7 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
     try {
       await api.deleteLogo(accessToken);
       setDetails((current) => (current ? { ...current, logoAvailable: false } : current));
+      window.dispatchEvent(new Event(STORE_LOGO_UPDATED_EVENT));
       setSuccess("Shop logo removed.");
     } catch (caught) {
       setError(messageFrom(caught, "Logo could not be removed."));

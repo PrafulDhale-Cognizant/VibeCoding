@@ -117,6 +117,24 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+async function requestBlob(path: string, accessToken: string): Promise<Blob | null> {
+  const apiBaseUrl = await resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: {
+      Accept: "image/png,image/jpeg",
+      Authorization: `Bearer ${accessToken}`,
+      "X-Correlation-Id": crypto.randomUUID()
+    }
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try { payload = (await response.json()) as ApiErrorPayload; } catch { /* normalized below */ }
+    throw new ApiClientError(response.status, payload);
+  }
+  return response.blob();
+}
+
 export function fetchSystemHealth(signal?: AbortSignal): Promise<SystemHealth> {
   return request<SystemHealth>("/api/v1/system/health", { method: "GET", signal });
 }
@@ -155,6 +173,7 @@ export const api = {
     ),
   getStore: (accessToken: string) =>
     request<StoreDetails>("/api/v1/store", {}, accessToken),
+  getStoreLogo: (accessToken: string) => requestBlob("/api/v1/store/logo", accessToken),
   updateStore: (accessToken: string, profile: StoreProfile, version: number) =>
     request<StoreDetails>(
       "/api/v1/store",
