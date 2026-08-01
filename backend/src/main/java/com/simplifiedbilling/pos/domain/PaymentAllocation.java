@@ -9,5 +9,12 @@ public record PaymentAllocation(
         BigDecimal changeAmount,
         String reference,
         String customerId,
-        String customerName) {
+        String customerName,
+        String customerPhone) {
+
+    public PaymentAllocation(
+            PaymentMode mode, BigDecimal amount, BigDecimal tenderedAmount, BigDecimal changeAmount,
+            String reference, String customerId, String customerName) {
+        this(mode, amount, tenderedAmount, changeAmount, reference, customerId, customerName, null);
+    }
 }

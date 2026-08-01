@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api } from "../../lib/api";
 import type {
   DashboardReportResponse,
+  InvoiceSummaryResponse,
   PaymentMode,
   ReportStockAlertResponse,
   SalesReportResponse,
@@ -41,7 +42,7 @@ function messageFrom(caught: unknown, fallback: string) {
   return caught instanceof Error ? caught.message : fallback;
 }
 
-export function ReportsPanel({ accessToken }: { accessToken: string }) {
+export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: string; canViewInvoices: boolean }) {
   const initial = useMemo(initialRange, []);
   const [dashboard, setDashboard] = useState<DashboardReportResponse | null>(null);
   const [sales, setSales] = useState<SalesReportResponse | null>(null);
@@ -51,6 +52,11 @@ export function ReportsPanel({ accessToken }: { accessToken: string }) {
   const [reportLoading, setReportLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState("");
+  const [invoiceQuery, setInvoiceQuery] = useState("");
+  const [invoicePage, setInvoicePage] = useState(0);
+  const [invoices, setInvoices] = useState<InvoiceSummaryResponse[]>([]);
+  const [invoiceTotal, setInvoiceTotal] = useState(0);
+  const [invoicePages, setInvoicePages] = useState(0);
 
   const loadDashboard = useCallback(async () => {
     const response = await api.getDashboardReport(accessToken);
@@ -69,6 +75,17 @@ export function ReportsPanel({ accessToken }: { accessToken: string }) {
       .catch((caught) => setError(messageFrom(caught, "Reports could not be loaded.")))
       .finally(() => setLoading(false));
   }, [initial.from, initial.to, loadDashboard, loadSales]);
+
+  useEffect(() => {
+    if (!canViewInvoices) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.searchInvoices(accessToken, invoiceQuery.trim(), invoicePage, 20)
+        .then((page) => { if (!cancelled) { setInvoices(page.content); setInvoiceTotal(page.totalElements); setInvoicePages(page.totalPages); } })
+        .catch((caught) => { if (!cancelled) setError(messageFrom(caught, "Invoices could not be loaded.")); });
+    }, invoiceQuery.trim() ? 220 : 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [accessToken, canViewInvoices, invoicePage, invoiceQuery]);
 
   async function applyRange(event: FormEvent) {
     event.preventDefault();
@@ -185,6 +202,19 @@ export function ReportsPanel({ accessToken }: { accessToken: string }) {
             <MetricCard label="Khata outstanding" value={money.format(dashboard.credit.totalOutstanding)} tone="red" />
           </section>
 
+          <section className="grid grid-cols-4 gap-4">
+            <MetricCard label="Month-to-date sales" value={money.format(dashboard.monthToDate.totalSales)} tone="indigo" />
+            <MetricCard label="Month profit" value={money.format(dashboard.monthToDate.grossMargin)} tone="green" />
+            <MetricCard label="Year-to-date sales" value={money.format(dashboard.yearToDate.totalSales)} tone="slate" />
+            <MetricCard label="Active customers" value={String(dashboard.credit.activeCustomers)} tone="slate" />
+          </section>
+
+          <section className="grid grid-cols-[1.35fr_1fr_1fr] gap-5">
+            <RevenueTrend days={dashboard.revenueTrend} />
+            <TopProducts products={dashboard.topSellingProducts} />
+            <RecentTransactions transactions={dashboard.recentTransactions} />
+          </section>
+
           <section className="grid grid-cols-[1.05fr_1fr_1fr] gap-5">
             <PaymentBreakdown summary={dashboard.today} />
             <AlertCard
@@ -241,6 +271,20 @@ export function ReportsPanel({ accessToken }: { accessToken: string }) {
 
         {sales ? <SalesReportBody report={sales} /> : <p className="p-6 text-sm text-slate-500">Run a date-range report to view sales.</p>}
       </section>
+
+      {canViewInvoices && <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 p-5">
+          <div><h4 className="font-bold">All invoices</h4><p className="text-xs text-slate-500">{invoiceTotal} invoices · searchable by invoice number, customer, or phone</p></div>
+          <TextInput className="mt-0 max-w-sm" value={invoiceQuery} onChange={(event) => { setInvoiceQuery(event.target.value); setInvoicePage(0); }} placeholder="Search invoices" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Invoice</th><th>Customer</th><th>Status</th><th>Date</th><th className="px-5 text-right">Total</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{invoices.map((invoice) => <tr key={invoice.id}><td className="px-5 py-3 font-bold">{invoice.invoiceNumber}</td><td><p className="font-semibold">{invoice.customerName ?? "Walk-in"}</p><p className="text-xs text-slate-500">{invoice.customerPhone}</p></td><td>{invoice.status.replaceAll("_", " ")}</td><td>{new Date(invoice.completedAt).toLocaleString("en-IN")}</td><td className="px-5 text-right font-bold">{money.format(invoice.totalAmount)}</td></tr>)}</tbody>
+          </table>
+          {invoices.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No invoices found.</p>}
+        </div>
+        <div className="flex items-center justify-between border-t border-slate-200 p-4 text-sm"><span>Page {invoicePages === 0 ? 0 : invoicePage + 1} of {invoicePages}</span><div className="flex gap-2"><button type="button" disabled={invoicePage === 0} onClick={() => setInvoicePage((page) => page - 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={invoicePage + 1 >= invoicePages} onClick={() => setInvoicePage((page) => page + 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Next</button></div></div>
+      </section>}
 
       {sales && <PrintableReport report={sales} />}
     </div>
@@ -321,6 +365,23 @@ function AlertCard({
       </div>
     </article>
   );
+}
+
+function RevenueTrend({ days }: { days: DashboardReportResponse["revenueTrend"] }) {
+  const recent = days.slice(-14);
+  const maximum = Math.max(...recent.map((day) => Math.max(0, day.totalSales)), 1);
+  return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex items-center justify-between"><h4 className="font-bold">Revenue trend</h4><span className="text-xs text-slate-500">Last {recent.length} active days</span></div>
+    <div className="mt-5 flex h-40 items-end gap-2">{recent.length === 0 ? <p className="m-auto text-sm text-slate-500">No sales yet.</p> : recent.map((day) => <div key={day.businessDate} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2" title={`${day.businessDate}: ${money.format(day.totalSales)}`}><span className="hidden text-[9px] font-bold group-hover:block">{money.format(day.totalSales)}</span><div className="w-full rounded-t-md bg-indigo-500" style={{ height: `${Math.max(4, day.totalSales / maximum * 120)}px` }} /><span className="text-[9px] text-slate-500">{day.businessDate.slice(8)}</span></div>)}</div>
+  </article>;
+}
+
+function TopProducts({ products }: { products: DashboardReportResponse["topSellingProducts"] }) {
+  return <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-5"><h4 className="font-bold">Top-selling products</h4><p className="text-xs text-slate-500">Net of returns · 30 days</p></div><div className="divide-y divide-slate-100">{products.length === 0 ? <p className="p-5 text-sm text-slate-500">No product sales yet.</p> : products.slice(0, 6).map((product, index) => <div key={product.productId} className="flex items-center gap-3 px-5 py-3"><span className="grid h-7 w-7 place-items-center rounded-full bg-indigo-50 text-xs font-black text-indigo-700">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{product.productName}</p><p className="text-xs text-slate-500">{product.quantity} sold</p></div><strong className="text-sm">{money.format(product.netSales)}</strong></div>)}</div></article>;
+}
+
+function RecentTransactions({ transactions }: { transactions: DashboardReportResponse["recentTransactions"] }) {
+  return <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-5"><h4 className="font-bold">Recent transactions</h4><p className="text-xs text-slate-500">Sales, returns and cancellations</p></div><div className="divide-y divide-slate-100">{transactions.length === 0 ? <p className="p-5 text-sm text-slate-500">No transactions yet.</p> : transactions.slice(0, 6).map((transaction) => <div key={transaction.id} className="flex items-center justify-between px-5 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold">{transaction.referenceNumber}</p><p className="text-xs text-slate-500">{transaction.customerName ?? transaction.type} · {new Date(transaction.occurredAt).toLocaleDateString("en-IN")}</p></div><strong className={transaction.amount >= 0 ? "text-emerald-700" : "text-red-700"}>{money.format(transaction.amount)}</strong></div>)}</div></article>;
 }
 
 function SalesReportBody({ report }: { report: SalesReportResponse }) {

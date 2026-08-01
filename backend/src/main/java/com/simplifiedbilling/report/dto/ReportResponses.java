@@ -19,10 +19,27 @@ public final class ReportResponses {
             String timezone,
             String shopName,
             SalesSummaryResponse today,
+            SalesSummaryResponse monthToDate,
+            SalesSummaryResponse yearToDate,
+            List<DailySalesResponse> revenueTrend,
+            List<TopProductResponse> topSellingProducts,
+            List<RecentTransactionResponse> recentTransactions,
             InventoryAlertSummaryResponse inventory,
             CreditSummaryResponse credit,
             Instant generatedAt) {
+        public DashboardResponse {
+            revenueTrend = List.copyOf(revenueTrend);
+            topSellingProducts = List.copyOf(topSellingProducts);
+            recentTransactions = List.copyOf(recentTransactions);
+        }
     }
+
+    public record TopProductResponse(
+            String productId, String productName, BigDecimal quantity, BigDecimal netSales) { }
+
+    public record RecentTransactionResponse(
+            String id, String referenceNumber, String type, Instant occurredAt,
+            BigDecimal amount, String customerName) { }
 
     public record SalesReportResponse(
             LocalDate from,

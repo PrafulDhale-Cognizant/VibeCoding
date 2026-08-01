@@ -12,6 +12,16 @@ function bytes(value: number) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 }).format(value / 1024 / 1024 / 1024) + " GB";
 }
 
+function desktopConfiguration() {
+  return Object.fromEntries(Object.keys(localStorage)
+    .filter((key) => key.startsWith("simplified-billing."))
+    .map((key) => [key, localStorage.getItem(key) ?? ""]));
+}
+
+function applyConfiguration(configuration: Record<string, string>) {
+  Object.entries(configuration).forEach(([key, value]) => localStorage.setItem(key, value));
+}
+
 export function OperationsPanel() {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
@@ -64,10 +74,18 @@ export function OperationsPanel() {
       {diagnostics?.backup && <div className={`mt-4 rounded-xl p-4 text-sm ${diagnostics.backup.successful ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
         {diagnostics.backup.successful ? `Last backup: ${new Date(diagnostics.backup.createdAt!).toLocaleString("en-IN")} · ${diagnostics.backup.fileName}` : `Last backup failed: ${diagnostics.backup.message}`}
       </div>}
-      <div className="mt-5 flex gap-3"><button disabled={busy || password.length < 12} onClick={() => void action(() => window.billingDesktop!.createBackup(password), "Encrypted backup created and verified.")} className="rounded-xl bg-indigo-700 px-5 py-3 font-bold text-white disabled:opacity-40">Back up now</button>
+      <div className="mt-5 flex gap-3"><button disabled={busy || password.length < 12} onClick={() => void action(() => window.billingDesktop!.createBackup(password, desktopConfiguration()), "Complete encrypted backup created in the managed backup folder.")} className="rounded-xl bg-indigo-700 px-5 py-3 font-bold text-white disabled:opacity-40">One-click backup</button>
         <button disabled={busy || password.length < 12 || !diagnostics?.packaged} onClick={() => {
-          if (window.confirm("Restore replaces the current database after creating a pre-restore backup. Continue?")) void action(() => window.billingDesktop!.restoreBackup(password), "Backup restored; the local service is restarting.");
-        }} className="rounded-xl border border-red-300 px-5 py-3 font-bold text-red-700 disabled:opacity-40">Restore backup</button></div>
+          if (!window.confirm("Restore the latest backup? The current system is backed up first.")) return;
+          setBusy(true); setError(""); setSuccess("");
+          window.billingDesktop!.restoreLatestBackup(password).then((result) => {
+            applyConfiguration(result.configuration); setSuccess("Latest backup restored. Reloading the application…");
+            window.setTimeout(() => window.location.reload(), 1200);
+          }).catch((caught) => setError(messageFrom(caught, "Restore failed."))).finally(() => setBusy(false));
+        }} className="rounded-xl border border-red-300 px-5 py-3 font-bold text-red-700 disabled:opacity-40">One-click restore latest</button>
+        <button disabled={busy || password.length < 12 || !diagnostics?.packaged} onClick={() => void action(async () => {
+          const result = await window.billingDesktop!.restoreBackup(password); if (result) applyConfiguration(result.configuration); return result;
+        }, "Selected backup restored; reload the application to apply all settings.")} className="rounded-xl border border-slate-300 px-5 py-3 font-bold disabled:opacity-40">Choose backup…</button></div>
     </section>
 
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Signed offline update</h3>

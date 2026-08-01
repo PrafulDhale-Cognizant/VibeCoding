@@ -4,6 +4,7 @@ import type {
   DashboardReportResponse,
   InitialSetupRequest,
   InventoryPage,
+  InvoiceSummaryResponse,
   KhataBalanceStatus,
   KhataCustomerResponse,
   KhataLedgerEntryResponse,
@@ -412,6 +413,12 @@ export const api = {
       {},
       accessToken
     ),
+  searchInvoices: (accessToken: string, query = "", page = 0, size = 25) => {
+    const parameters = new URLSearchParams({ query, page: String(page), size: String(size) });
+    return request<InventoryPage<InvoiceSummaryResponse>>(
+      `/api/v1/invoices?${parameters.toString()}`, {}, accessToken
+    );
+  },
   settleKhata: (
     accessToken: string,
     customerId: string,

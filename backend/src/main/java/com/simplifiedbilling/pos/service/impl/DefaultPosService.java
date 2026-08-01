@@ -153,25 +153,26 @@ public class DefaultPosService implements PosService {
             BigDecimal change = ZERO;
             String customerId = null;
             String customerName = null;
+            String customerPhone = null;
             if (request.mode() == PaymentMode.CASH) {
                 tendered = money(request.tenderedAmount() == null ? amount : request.tenderedAmount());
                 if (tendered.compareTo(amount) < 0) {
                     throw invalid("INSUFFICIENT_CASH", "Tendered cash cannot be less than the cash payment.");
                 }
                 change = tendered.subtract(amount);
-            } else if (request.mode() == PaymentMode.UDHAAR) {
-                if (request.customerId() == null || request.customerId().isBlank()) {
-                    throw invalid("CREDIT_CUSTOMER_REQUIRED", "Select a customer for Udhaar payment.");
-                }
+            } else if (request.mode() == PaymentMode.UDHAAR
+                    && (request.customerId() == null || request.customerId().isBlank())) {
+                throw invalid("CREDIT_CUSTOMER_REQUIRED", "Select a customer for Udhaar payment.");
+            }
+            if (request.customerId() != null && !request.customerId().isBlank()) {
                 CreditCustomerSnapshot customer = creditAccountService.getCreditCustomer(request.customerId().trim());
                 customerId = customer.customerId();
                 customerName = customer.name();
-            } else if (request.customerId() != null && !request.customerId().isBlank()) {
-                throw invalid("INVALID_PAYMENT_CUSTOMER", "A customer can only be attached to Udhaar payment.");
+                customerPhone = customer.phone();
             }
             return new PaymentAllocation(
                     request.mode(), amount, tendered, change, normalizeText(request.reference()),
-                    customerId, customerName);
+                    customerId, customerName, customerPhone);
         }).toList();
         long creditPayments = allocations.stream()
                 .filter(payment -> payment.mode() == PaymentMode.UDHAAR)

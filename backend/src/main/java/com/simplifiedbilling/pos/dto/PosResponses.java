@@ -66,7 +66,8 @@ public final class PosResponses {
             BigDecimal changeAmount,
             String reference,
             String customerId,
-            String customerName) {
+            String customerName,
+            String customerPhone) {
     }
 
     public record InvoiceResponse(

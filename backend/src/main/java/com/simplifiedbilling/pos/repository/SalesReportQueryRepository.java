@@ -87,6 +87,48 @@ public class SalesReportQueryRepository {
              GROUP BY movement.payment_mode
             """;
 
+    private static final String TOP_PRODUCTS_SQL = """
+            SELECT movement.product_id, MAX(movement.product_name) AS product_name,
+                   COALESCE(SUM(movement.quantity), 0) AS quantity,
+                   COALESCE(SUM(movement.amount), 0) AS net_sales
+              FROM (
+                    SELECT item.product_id, item.product_name, item.quantity, item.line_total AS amount
+                      FROM invoice_items item JOIN invoices invoice ON invoice.id = item.invoice_id
+                     WHERE invoice.completed_at >= ? AND invoice.completed_at < ?
+                    UNION ALL
+                    SELECT item.product_id, item.product_name, -item.quantity, -item.line_total
+                      FROM sale_return_items item JOIN sale_returns sale_return ON sale_return.id = item.sale_return_id
+                     WHERE sale_return.returned_at >= ? AND sale_return.returned_at < ?
+                   ) movement
+             GROUP BY movement.product_id
+            HAVING SUM(movement.quantity) > 0
+             ORDER BY quantity DESC, net_sales DESC
+             LIMIT ?
+            """;
+
+    private static final String RECENT_TRANSACTIONS_SQL = """
+            SELECT activity.id, activity.reference_number, activity.activity_type, activity.activity_at,
+                   activity.amount, activity.customer_name
+              FROM (
+                    SELECT invoice.id, invoice.invoice_number AS reference_number, 'SALE' AS activity_type,
+                           invoice.completed_at AS activity_at, invoice.total_amount AS amount,
+                           MAX(payment.customer_name) AS customer_name
+                      FROM invoices invoice LEFT JOIN payments payment ON payment.invoice_id = invoice.id
+                     GROUP BY invoice.id, invoice.invoice_number, invoice.completed_at, invoice.total_amount
+                    UNION ALL
+                    SELECT sale_return.id, sale_return.return_number,
+                           CASE WHEN sale_return.return_type = 'CANCELLATION' THEN 'CANCELLATION' ELSE 'RETURN' END,
+                           sale_return.returned_at, -sale_return.total_amount, MAX(payment.customer_name)
+                      FROM sale_returns sale_return
+                      JOIN invoices invoice ON invoice.id = sale_return.invoice_id
+                      LEFT JOIN payments payment ON payment.invoice_id = invoice.id
+                     GROUP BY sale_return.id, sale_return.return_number, sale_return.return_type,
+                              sale_return.returned_at, sale_return.total_amount
+                   ) activity
+             ORDER BY activity.activity_at DESC, activity.id DESC
+             LIMIT ?
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public SalesReportQueryRepository(JdbcTemplate jdbcTemplate) {
@@ -143,6 +185,23 @@ public class SalesReportQueryRepository {
                 Timestamp.from(endExclusive));
     }
 
+    public List<TopProductRow> findTopProducts(Instant startInclusive, Instant endExclusive, int limit) {
+        return jdbcTemplate.query(TOP_PRODUCTS_SQL,
+                (resultSet, rowNumber) -> new TopProductRow(
+                        resultSet.getString("product_id"), resultSet.getString("product_name"),
+                        resultSet.getBigDecimal("quantity"), resultSet.getBigDecimal("net_sales")),
+                Timestamp.from(startInclusive), Timestamp.from(endExclusive),
+                Timestamp.from(startInclusive), Timestamp.from(endExclusive), limit);
+    }
+
+    public List<RecentTransactionRow> findRecentTransactions(int limit) {
+        return jdbcTemplate.query(RECENT_TRANSACTIONS_SQL,
+                (resultSet, rowNumber) -> new RecentTransactionRow(
+                        resultSet.getString("id"), resultSet.getString("reference_number"),
+                        resultSet.getString("activity_type"), resultSet.getTimestamp("activity_at").toInstant(),
+                        resultSet.getBigDecimal("amount"), resultSet.getString("customer_name")), limit);
+    }
+
     public record FinancialTotals(
             long billCount,
             BigDecimal subtotalAmount,
@@ -165,4 +224,10 @@ public class SalesReportQueryRepository {
 
     public record PaymentTotalRow(PaymentMode paymentMode, BigDecimal amount) {
     }
+
+    public record TopProductRow(String productId, String productName, BigDecimal quantity, BigDecimal netSales) { }
+
+    public record RecentTransactionRow(
+            String id, String referenceNumber, String type, Instant occurredAt,
+            BigDecimal amount, String customerName) { }
 }

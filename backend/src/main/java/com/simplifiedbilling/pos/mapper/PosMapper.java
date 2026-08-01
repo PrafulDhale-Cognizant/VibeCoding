@@ -60,7 +60,7 @@ public class PosMapper {
                 invoice.getPayments().stream().map(payment -> new PosResponses.PaymentResponse(
                         payment.getMode(), payment.getAmount(), payment.getTenderedAmount(),
                         payment.getChangeAmount(), payment.getReference(), payment.getCustomerId(),
-                        payment.getCustomerName())).toList(),
+                        payment.getCustomerName(), payment.getCustomerPhone())).toList(),
                 idempotentReplay);
     }
 

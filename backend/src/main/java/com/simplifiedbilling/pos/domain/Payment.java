@@ -53,6 +53,9 @@ public class Payment {
     @Column(name = "customer_name", length = 150)
     private String customerName;
 
+    @Column(name = "customer_phone", length = 20)
+    private String customerPhone;
+
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private Instant recordedAt;
 
@@ -70,6 +73,7 @@ public class Payment {
         payment.reference = allocation.reference();
         payment.customerId = allocation.customerId();
         payment.customerName = allocation.customerName();
+        payment.customerPhone = allocation.customerPhone();
         payment.recordedAt = now;
         return payment;
     }
@@ -81,5 +85,6 @@ public class Payment {
     public String getReference() { return reference; }
     public String getCustomerId() { return customerId; }
     public String getCustomerName() { return customerName; }
+    public String getCustomerPhone() { return customerPhone; }
     public Instant getRecordedAt() { return recordedAt; }
 }

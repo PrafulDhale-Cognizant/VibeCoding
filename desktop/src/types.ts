@@ -285,6 +285,7 @@ export interface PosInvoiceResponse {
     reference: string | null;
     customerId: string | null;
     customerName: string | null;
+    customerPhone: string | null;
   }>;
   idempotentReplay: boolean;
 }
@@ -365,6 +366,18 @@ export interface SaleReturnSourceInvoice {
   items: SaleReturnSourceLine[];
 }
 
+export interface InvoiceSummaryResponse {
+  id: string;
+  invoiceNumber: string;
+  status: PosInvoiceResponse["status"];
+  completedAt: string;
+  totalAmount: number;
+  returnableTotal: number;
+  customerId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+}
+
 export interface SaleReturnResponse {
   id: string;
   returnNumber: string;
@@ -440,6 +453,23 @@ export interface DashboardReportResponse {
   timezone: string;
   shopName: string;
   today: SalesSummaryResponse;
+  monthToDate: SalesSummaryResponse;
+  yearToDate: SalesSummaryResponse;
+  revenueTrend: DailySalesResponse[];
+  topSellingProducts: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    netSales: number;
+  }>;
+  recentTransactions: Array<{
+    id: string;
+    referenceNumber: string;
+    type: "SALE" | "RETURN" | "CANCELLATION";
+    occurredAt: string;
+    amount: number;
+    customerName: string | null;
+  }>;
   inventory: {
     lowStockCount: number;
     outOfStockCount: number;

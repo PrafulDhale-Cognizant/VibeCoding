@@ -196,7 +196,7 @@ export function Workspace({
             <PurchasingPanel accessToken={session.accessToken} canPay={canAdminister} />
           )}
           {section === "reports" && canViewReports && (
-            <ReportsPanel accessToken={session.accessToken} />
+            <ReportsPanel accessToken={session.accessToken} canViewInvoices={canAdminister} />
           )}
           {section === "operations" && canAdminister && <OperationsPanel />}
           {section === "store" && (

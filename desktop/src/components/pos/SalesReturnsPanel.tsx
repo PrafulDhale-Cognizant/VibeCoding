@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api } from "../../lib/api";
 import type {
   PaymentMode,
+  InvoiceSummaryResponse,
   ReturnDisposition,
   SaleReturnResponse,
   SaleReturnSourceInvoice
@@ -21,6 +22,8 @@ function money(value: number) {
 export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoice, setInvoice] = useState<SaleReturnSourceInvoice | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceSummaryResponse[]>([]);
+  const [invoiceCount, setInvoiceCount] = useState(0);
   const [lines, setLines] = useState<Record<string, LineDraft>>({});
   const [refundMode, setRefundMode] = useState<PaymentMode>("CASH");
   const [reference, setReference] = useState("");
@@ -30,6 +33,18 @@ export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const key = useRef(crypto.randomUUID());
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.searchInvoices(accessToken, invoiceNumber.trim(), 0, 20)
+        .then((page) => {
+          if (!cancelled) { setInvoices(page.content); setInvoiceCount(page.totalElements); }
+        })
+        .catch(() => { if (!cancelled) { setInvoices([]); setInvoiceCount(0); } });
+    }, invoiceNumber.trim() ? 220 : 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [accessToken, invoiceNumber]);
 
   const selectedTotal = useMemo(() => {
     if (!invoice) return 0;
@@ -57,6 +72,19 @@ export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
     } catch (caught) {
       setInvoice(null); setError(messageFrom(caught, "Invoice could not be found."));
     } finally { setLoading(false); }
+  }
+
+  async function selectInvoice(number: string) {
+    setInvoiceNumber(number); setLoading(true); setError(""); setSuccess(""); setResult(null);
+    try {
+      const found = await api.findSaleReturnSource(accessToken, number);
+      setInvoice(found);
+      setLines(Object.fromEntries(found.items.map((item) => [item.invoiceItemId,
+        { quantity: 0, disposition: "SALEABLE" as ReturnDisposition }])));
+      setRefundMode(found.payments[0]?.mode ?? "CASH");
+      setReason(""); key.current = crypto.randomUUID();
+    } catch (caught) { setError(messageFrom(caught, "Invoice could not be loaded.")); }
+    finally { setLoading(false); }
   }
 
   function refund(amount: number) {
@@ -118,6 +146,22 @@ export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
           <TextInput required autoFocus value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="Invoice number" />
           <button disabled={loading} className="rounded-xl bg-indigo-700 px-6 py-2 font-bold text-white disabled:opacity-50">Find invoice</button>
         </form>
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <span>Recent invoices</span><span>{invoiceCount} found</span>
+          </div>
+          <div className="max-h-72 divide-y divide-slate-100 overflow-auto">
+            {invoices.length === 0 ? <p className="px-4 py-5 text-sm text-slate-500">No matching invoices.</p> : invoices.map((item) => (
+              <button key={item.id} type="button" disabled={loading || item.returnableTotal <= 0}
+                onClick={() => void selectInvoice(item.invoiceNumber)}
+                className="grid w-full grid-cols-[1fr_1fr_auto] items-center gap-4 px-4 py-3 text-left hover:bg-indigo-50 disabled:opacity-50">
+                <div><p className="font-bold">{item.invoiceNumber}</p><p className="text-xs text-slate-500">{new Date(item.completedAt).toLocaleString("en-IN")}</p></div>
+                <div><p className="text-sm font-semibold">{item.customerName ?? "Walk-in customer"}</p><p className="text-xs text-slate-500">{item.customerPhone ?? item.status.replaceAll("_", " ")}</p></div>
+                <div className="text-right"><p className="font-black">{money(item.totalAmount)}</p><p className="text-xs text-slate-500">Returnable {money(item.returnableTotal)}</p></div>
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       {error && <ErrorNotice message={error} />}

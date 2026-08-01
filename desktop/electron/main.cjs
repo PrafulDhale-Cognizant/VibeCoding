@@ -146,6 +146,43 @@ function decryptFile(sourcePath, targetPath, password) {
 function backupStatusPath() { return path.join(app.getPath("userData"), "backup-status.json"); }
 function recordBackupStatus(status) { fs.writeFileSync(backupStatusPath(), JSON.stringify(status), { mode: 0o600 }); }
 function backupSchedulePath() { return path.join(app.getPath("userData"), "backup-schedule.json"); }
+function managedBackupDirectory() { return path.join(app.getPath("userData"), "backups"); }
+
+function normalizeBackupConfiguration(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const configuration = Object.fromEntries(Object.entries(value)
+    .filter(([key, entry]) => key.startsWith("simplified-billing.") && typeof entry === "string")
+    .slice(0, 100));
+  if (Buffer.byteLength(JSON.stringify(configuration), "utf8") > 1024 * 1024) {
+    throw new Error("Desktop backup configuration is too large.");
+  }
+  return configuration;
+}
+
+function isBackupHeaderValid(filePath) {
+  try {
+    const descriptor = fs.openSync(filePath, "r");
+    const header = Buffer.alloc(BACKUP_MAGIC.length);
+    fs.readSync(descriptor, header, 0, header.length, 0);
+    fs.closeSync(descriptor);
+    return header.equals(BACKUP_MAGIC);
+  } catch { return false; }
+}
+
+function latestBackup() {
+  const schedule = readBackupSchedule(false);
+  const directories = [managedBackupDirectory(), schedule?.destination,
+    path.join(app.getPath("userData"), "pre-update-backups")].filter(Boolean);
+  const candidates = directories.flatMap((directory) => {
+    try {
+      return fs.readdirSync(directory).filter((name) => name.toLowerCase().endsWith(".sbk"))
+        .map((name) => { const filePath = path.join(directory, name); const stats = fs.statSync(filePath);
+          return { filePath, fileName: name, createdAt: stats.mtime.toISOString(), size: stats.size }; });
+    } catch { return []; }
+  }).filter((candidate) => isBackupHeaderValid(candidate.filePath))
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  return candidates[0] || null;
+}
 
 function readBackupSchedule(includeSecret = false) {
   try {
@@ -157,11 +194,11 @@ function readBackupSchedule(includeSecret = false) {
   } catch { return null; }
 }
 
-function writeBackupSchedule(destination, password, retention) {
+function writeBackupSchedule(destination, password, retention, rawConfiguration = {}) {
   if (!safeStorage.isEncryptionAvailable()) throw new Error("Operating-system encryption is unavailable.");
   const encryptedPassword = safeStorage.encryptString(password).toString("base64");
   fs.writeFileSync(backupSchedulePath(), JSON.stringify({ destination, retention, encryptedPassword,
-    lastAttemptAt: null }), { mode: 0o600 });
+    configuration: normalizeBackupConfiguration(rawConfiguration), lastAttemptAt: null }), { mode: 0o600 });
 }
 
 async function runScheduledBackupIfDue() {
@@ -172,7 +209,7 @@ async function runScheduledBackupIfDue() {
   const attempt = new Date().toISOString();
   const target = path.join(schedule.destination, `simplified-billing-scheduled-${attempt.replace(/[:.]/g, "-")}.sbk`);
   try {
-    await createBackupToPath(target, schedule.password);
+    await createBackupToPath(target, schedule.password, schedule.configuration);
     const backups = fs.readdirSync(schedule.destination)
       .filter((name) => /^simplified-billing-scheduled-.*\.sbk$/i.test(name))
       .map((name) => ({ name, path: path.join(schedule.destination, name), time: fs.statSync(path.join(schedule.destination, name)).mtimeMs }))
@@ -191,17 +228,24 @@ function startBackupScheduler() {
     (error) => console.error("Scheduled backup failed.", error)), 60 * 60 * 1000);
 }
 
-async function createBackupToPath(targetPath, password) {
+async function createBackupToPath(targetPath, password, rawConfiguration = {}) {
   const config = databaseConfig();
   if (!config.password) throw new Error("BILLING_DB_PASSWORD is required for backup.");
   const temporary = path.join(app.getPath("temp"), `billing-${crypto.randomUUID()}.sql`);
+  const payload = path.join(app.getPath("temp"), `billing-${crypto.randomUUID()}.json`);
   try {
     await runDatabaseTool(process.env.BILLING_MYSQLDUMP || "mysqldump", [
       "--single-transaction", "--routines", "--triggers", "--set-gtid-purged=OFF",
       "--host", config.host, "--port", config.port, "--user", config.username,
       "--default-character-set=utf8mb4", config.database
     ], { stdoutPath: temporary });
-    encryptFile(temporary, targetPath, password);
+    fs.writeFileSync(payload, JSON.stringify({
+      format: "simplified-billing-backup", formatVersion: 2,
+      createdAt: new Date().toISOString(), applicationVersion: app.getVersion(),
+      databaseSql: fs.readFileSync(temporary).toString("base64"),
+      configuration: normalizeBackupConfiguration(rawConfiguration)
+    }), { mode: 0o600 });
+    encryptFile(payload, targetPath, password);
     const status = { successful: true, createdAt: new Date().toISOString(),
       fileName: path.basename(targetPath), size: fs.statSync(targetPath).size };
     recordBackupStatus(status);
@@ -211,6 +255,51 @@ async function createBackupToPath(targetPath, password) {
     throw error;
   } finally {
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    if (fs.existsSync(payload)) fs.unlinkSync(payload);
+  }
+}
+
+function decryptBackupToSql(sourcePath, sqlPath, password) {
+  const decrypted = path.join(app.getPath("temp"), `billing-payload-${crypto.randomUUID()}`);
+  try {
+    decryptFile(sourcePath, decrypted, password);
+    const bytes = fs.readFileSync(decrypted);
+    try {
+      const payload = JSON.parse(bytes.toString("utf8"));
+      if (payload.format !== "simplified-billing-backup" || payload.formatVersion !== 2
+          || typeof payload.databaseSql !== "string") throw new Error("Unsupported backup payload.");
+      fs.writeFileSync(sqlPath, Buffer.from(payload.databaseSql, "base64"), { mode: 0o600 });
+      return normalizeBackupConfiguration(payload.configuration);
+    } catch (error) {
+      if (bytes.subarray(0, 32).toString("utf8").includes("simplified-billing-backup")) throw error;
+      fs.writeFileSync(sqlPath, bytes, { mode: 0o600 });
+      return {};
+    }
+  } finally { if (fs.existsSync(decrypted)) fs.unlinkSync(decrypted); }
+}
+
+async function restoreBackupFromPath(source, password) {
+  if (!app.isPackaged || !resolveBackendJar()) {
+    throw new Error("Restore is available only when the desktop application manages the backend lifecycle.");
+  }
+  const backupDirectory = managedBackupDirectory();
+  fs.mkdirSync(backupDirectory, { recursive: true });
+  const preRestore = path.join(backupDirectory, `pre-restore-${new Date().toISOString().replace(/[:.]/g, "-")}.sbk`);
+  const temporary = path.join(app.getPath("temp"), `billing-restore-${crypto.randomUUID()}.sql`);
+  const config = databaseConfig();
+  let stopped = false;
+  try {
+    const configuration = decryptBackupToSql(source, temporary, password);
+    await createBackupToPath(preRestore, password, configuration);
+    await stopBackendAsync(); stopped = true;
+    await runDatabaseTool(process.env.BILLING_MYSQL_CLIENT || "mysql", [
+      "--host", config.host, "--port", config.port, "--user", config.username,
+      "--default-character-set=utf8mb4", config.database
+    ], { stdinPath: temporary });
+    return { restoredAt: new Date().toISOString(), preRestoreBackup: path.basename(preRestore), configuration };
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    if (stopped) startBackendIfConfigured();
   }
 }
 
@@ -432,16 +521,18 @@ if (!hasSingleInstanceLock) {
       fs.writeFileSync(selected.filePath, JSON.stringify(sanitizedDiagnostics(), null, 2), { mode: 0o600 });
       return { fileName: path.basename(selected.filePath) };
     });
-    ipcMain.handle("billing:backup:create", async (event, rawPassword) => {
+    ipcMain.handle("billing:backup:startup-recovery", (event) => {
+      assertTrustedIpcSender(event);
+      const backup = latestBackup();
+      return backup ? { ...backup, restoreAvailable: Boolean(app.isPackaged && resolveBackendJar()) } : null;
+    });
+    ipcMain.handle("billing:backup:create", async (event, rawPassword, rawConfiguration) => {
       assertTrustedIpcSender(event);
       const password = requireBackupPassword(rawPassword);
-      const selected = await dialog.showSaveDialog(mainWindow, {
-        title: "Create encrypted billing backup",
-        defaultPath: `simplified-billing-${new Date().toISOString().replace(/[:.]/g, "-")}.sbk`,
-        filters: [{ name: "Simplified Billing backup", extensions: ["sbk"] }]
-      });
-      if (selected.canceled || !selected.filePath) return null;
-      return createBackupToPath(selected.filePath, password);
+      const directory = managedBackupDirectory();
+      fs.mkdirSync(directory, { recursive: true });
+      const target = path.join(directory, `simplified-billing-${new Date().toISOString().replace(/[:.]/g, "-")}.sbk`);
+      return createBackupToPath(target, password, rawConfiguration);
     });
     ipcMain.handle("billing:backup:schedule", async (event, options) => {
       assertTrustedIpcSender(event);
@@ -454,7 +545,7 @@ if (!hasSingleInstanceLock) {
         title: "Choose scheduled backup folder", properties: ["openDirectory", "createDirectory"]
       });
       if (selected.canceled || !selected.filePaths[0]) return null;
-      writeBackupSchedule(selected.filePaths[0], password, retention);
+      writeBackupSchedule(selected.filePaths[0], password, retention, options?.configuration);
       await runScheduledBackupIfDue();
       return readBackupSchedule(false);
     });
@@ -466,35 +557,20 @@ if (!hasSingleInstanceLock) {
     ipcMain.handle("billing:backup:restore", async (event, rawPassword) => {
       assertTrustedIpcSender(event);
       const password = requireBackupPassword(rawPassword);
-      if (!app.isPackaged || !resolveBackendJar()) {
-        throw new Error("Restore is available only when the desktop application manages the backend lifecycle.");
-      }
       const selected = await dialog.showOpenDialog(mainWindow, {
         title: "Select encrypted billing backup",
         properties: ["openFile"],
         filters: [{ name: "Simplified Billing backup", extensions: ["sbk"] }]
       });
       if (selected.canceled || !selected.filePaths[0]) return null;
-      const source = selected.filePaths[0];
-      const preRestore = path.join(path.dirname(source),
-        `pre-restore-${new Date().toISOString().replace(/[:.]/g, "-")}.sbk`);
-      const temporary = path.join(app.getPath("temp"), `billing-restore-${crypto.randomUUID()}.sql`);
-      const config = databaseConfig();
-      let stopped = false;
-      try {
-        decryptFile(source, temporary, password);
-        await createBackupToPath(preRestore, password);
-        await stopBackendAsync();
-        stopped = true;
-        await runDatabaseTool(process.env.BILLING_MYSQL_CLIENT || "mysql", [
-          "--host", config.host, "--port", config.port, "--user", config.username,
-          "--default-character-set=utf8mb4", config.database
-        ], { stdinPath: temporary });
-        return { restoredAt: new Date().toISOString(), preRestoreBackup: path.basename(preRestore) };
-      } finally {
-        if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
-        if (stopped) startBackendIfConfigured();
-      }
+      return restoreBackupFromPath(selected.filePaths[0], password);
+    });
+    ipcMain.handle("billing:backup:restore-latest", async (event, rawPassword) => {
+      assertTrustedIpcSender(event);
+      const password = requireBackupPassword(rawPassword);
+      const backup = latestBackup();
+      if (!backup) throw new Error("No valid local backup is available.");
+      return restoreBackupFromPath(backup.filePath, password);
     });
     ipcMain.handle("billing:update:apply", async (event, rawPassword) => {
       assertTrustedIpcSender(event);

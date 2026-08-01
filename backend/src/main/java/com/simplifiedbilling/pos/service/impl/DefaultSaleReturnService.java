@@ -277,7 +277,8 @@ public class DefaultSaleReturnService implements SaleReturnService {
         }).toList();
         List<PosResponses.PaymentResponse> payments = invoice.getPayments().stream().map(payment ->
                 new PosResponses.PaymentResponse(payment.getMode(), payment.getAmount(), payment.getTenderedAmount(),
-                        payment.getChangeAmount(), payment.getReference(), payment.getCustomerId(), payment.getCustomerName()))
+                        payment.getChangeAmount(), payment.getReference(), payment.getCustomerId(), payment.getCustomerName(),
+                        payment.getCustomerPhone()))
                 .toList();
         return new SaleReturnResponses.SourceInvoice(invoice.getId(), invoice.getInvoiceNumber(), invoice.getStatus(),
                 invoice.getCompletedAt(), invoice.getTotalAmount(),

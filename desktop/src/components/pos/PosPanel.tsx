@@ -376,7 +376,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                         <td className="px-3 py-4 text-right font-semibold">{money.format(line.product.sellingPrice)}</td>
                         <td className="px-3 py-4">
                           <div className="grid grid-cols-[1fr_72px] gap-1">
-                            <select aria-label={`Discount type for ${line.product.name}`} value={line.discountType} onChange={(event) => updateDiscount(line.product.id, event.target.value as DiscountType, line.discountValue)} className="rounded-md border border-slate-300 bg-white px-1 py-2 text-xs outline-none focus:border-indigo-500">
+                            <select aria-label={`Discount type for ${line.product.name}`} value={line.discountType} onChange={(event) => updateDiscount(line.product.id, event.target.value as DiscountType, line.discountValue)} className="md-input md-select mt-0 min-h-0 rounded-md px-2 py-2 text-xs">
                               <option value="NONE">None</option>
                               <option value="PERCENTAGE">%</option>
                               <option value="FIXED">₹</option>
@@ -421,7 +421,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="font-bold">Bill discount</h3>
-              <select value={taxMode} onChange={(event) => setTaxMode(event.target.value as TaxMode)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
+              <select value={taxMode} onChange={(event) => setTaxMode(event.target.value as TaxMode)} className="md-input md-select mt-0 min-h-0 w-auto rounded-lg py-1.5 text-xs font-semibold">
                 <option value="INTRA_STATE">CGST + SGST</option>
                 <option value="INTER_STATE">IGST</option>
               </select>
@@ -436,12 +436,12 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             </div>
           </section>
 
-          <section className="flex flex-1 flex-col rounded-2xl bg-slate-950 p-5 text-white shadow-lg">
+          <section className="md-pos-checkout flex flex-1 flex-col rounded-2xl border p-5 shadow-sm">
             <div className="space-y-3 text-sm">
               <TotalRow label="Subtotal" value={quote?.subtotalAmount} />
               <TotalRow label="Line discounts" value={quote ? -quote.lineDiscountAmount : undefined} muted />
               <TotalRow label="Bill discount" value={quote ? -quote.billDiscountAmount : undefined} muted />
-              <div className="border-t border-slate-700 pt-3">
+              <div className="border-t border-slate-200 pt-3">
                 <TotalRow label="Taxable value" value={quote?.taxableAmount} />
                 {taxMode === "INTRA_STATE" ? (
                   <><TotalRow label="CGST" value={quote?.cgstAmount} muted /><TotalRow label="SGST" value={quote?.sgstAmount} muted /></>
@@ -449,9 +449,9 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                 <TotalRow label="Round off" value={quote?.roundOffAmount} muted />
               </div>
             </div>
-            <div className="mt-auto border-t border-slate-700 pt-5">
+            <div className="mt-auto border-t border-slate-200 pt-5">
               <div className="flex items-end justify-between">
-                <p className="text-sm font-bold uppercase tracking-wider text-slate-400">Payable</p>
+                <p className="text-sm font-bold uppercase tracking-wider text-slate-500">Payable</p>
                 <p className="text-4xl font-black tracking-tight">{quote ? money.format(quote.totalAmount) : money.format(0)}</p>
               </div>
               <p className="mt-2 text-right text-xs text-slate-400">{quoting ? "Recalculating…" : quote?.pricesIncludeGst ? "Prices include GST" : "GST added to prices"}</p>
@@ -476,7 +476,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                 amount: quote.totalAmount,
                 ...(mode === "CASH" ? { tenderedAmount: tendered } : {}),
                 ...(reference.trim() ? { reference: reference.trim() } : {}),
-                ...(mode === "UDHAAR" && customerId ? { customerId } : {})
+                ...(customerId ? { customerId } : {})
               }],
               notes: ""
             });
@@ -506,7 +506,7 @@ function Shortcut({ label, text }: { label: string; text: string }) {
 }
 
 function TotalRow({ label, value, muted = false }: { label: string; value?: number; muted?: boolean }) {
-  return <div className={`flex items-center justify-between ${muted ? "text-slate-400" : "text-slate-200"}`}><span>{label}</span><strong>{value === undefined ? "—" : money.format(value)}</strong></div>;
+  return <div className={`flex items-center justify-between ${muted ? "text-slate-500" : "text-slate-800"}`}><span>{label}</span><strong>{value === undefined ? "—" : money.format(value)}</strong></div>;
 }
 
 function PaymentModal({
@@ -526,12 +526,14 @@ function PaymentModal({
   const [customerQuery, setCustomerQuery] = useState("");
   const [customers, setCustomers] = useState<KhataCustomerResponse[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<KhataCustomerResponse | null>(null);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const change = mode === "CASH" ? Math.max(0, tendered - quote.totalAmount) : 0;
 
   useEffect(() => {
-    if (mode !== "UDHAAR") return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       api.searchKhataCustomers(accessToken, {
@@ -550,7 +552,19 @@ function PaymentModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [accessToken, customerQuery, mode]);
+  }, [accessToken, customerQuery]);
+
+  async function createCustomer() {
+    setSaving(true); setError("");
+    try {
+      const created = await api.createKhataCustomer(accessToken, {
+        name: customerName.trim(), phone: customerPhone.trim(), notes: "Created during POS checkout"
+      });
+      setSelectedCustomer(created); setCustomerQuery(created.name); setCreatingCustomer(false);
+      setCustomers((current) => [created, ...current]);
+    } catch (caught) { setError(messageFrom(caught, "Customer could not be created.")); }
+    finally { setSaving(false); }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -578,33 +592,38 @@ function PaymentModal({
             <button key={value} type="button" onClick={() => setMode(value)} className={`rounded-xl border-2 px-4 py-4 font-bold ${mode === value ? "border-indigo-600 bg-indigo-50 text-indigo-800" : "border-slate-200 hover:border-slate-300"}`}>{value}</button>
           ))}
         </div>
+        <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm font-bold">Customer details {mode === "UDHAAR" ? "(required)" : "(optional)"}</p><p className="text-xs text-slate-500">Attach an existing customer or add one without leaving checkout.</p></div>
+            <button type="button" onClick={() => setCreatingCustomer((value) => !value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-indigo-700">{creatingCustomer ? "Search existing" : "Add customer"}</button>
+          </div>
+          {creatingCustomer ? (
+            <div className="mt-3 grid grid-cols-[1fr_160px_auto] gap-2">
+              <TextInput className="mt-0" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name" maxLength={150} />
+              <TextInput className="mt-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone number" maxLength={20} />
+              <button type="button" disabled={saving || !customerName.trim() || !customerPhone.trim()} onClick={() => void createCustomer()} className="rounded-lg bg-indigo-700 px-4 text-sm font-bold text-white disabled:opacity-40">Save</button>
+            </div>
+          ) : selectedCustomer ? (
+            <div className="mt-3 flex items-center justify-between rounded-xl border-2 border-emerald-500 bg-emerald-50 p-3">
+              <div><p className="font-bold text-emerald-950">{selectedCustomer.name}</p><p className="text-xs text-emerald-800">{selectedCustomer.phone} · Current due {money.format(selectedCustomer.outstandingAmount)}</p></div>
+              <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); }} className="text-xs font-bold text-emerald-800">Change</button>
+            </div>
+          ) : (
+            <div className="relative mt-3">
+              <TextInput className="mt-0" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Search name or phone" />
+              {customers.length > 0 && <div className="mt-2 max-h-32 overflow-auto rounded-lg border border-slate-200 bg-white p-1">
+                {customers.map((customer) => <button key={customer.id} type="button" onClick={() => { setSelectedCustomer(customer); setCustomerQuery(customer.name); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left hover:bg-indigo-50"><span><strong className="block text-sm">{customer.name}</strong><small className="text-slate-500">{customer.phone}</small></span><small>Due {money.format(customer.outstandingAmount)}</small></button>)}
+              </div>}
+            </div>
+          )}
+        </section>
         {mode === "CASH" ? (
           <div className="mt-5 grid grid-cols-2 gap-4">
             <label className="text-sm font-bold text-slate-700">Cash tendered<input autoFocus type="number" min={quote.totalAmount} step="0.01" value={tendered} onChange={(event) => setTendered(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg font-bold outline-none focus:border-indigo-600" /></label>
             <div className="rounded-xl bg-emerald-50 p-4"><p className="text-sm font-bold text-emerald-800">Change to return</p><p className="mt-2 text-2xl font-black text-emerald-900">{money.format(change)}</p></div>
           </div>
         ) : mode === "UDHAAR" ? (
-          <div className="mt-5">
-            <label className="block text-sm font-bold text-slate-700">Credit customer
-              <input autoFocus value={customerQuery} onChange={(event) => { setCustomerQuery(event.target.value); setSelectedCustomer(null); }} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-600" placeholder="Search customer name or phone" />
-            </label>
-            {selectedCustomer ? (
-              <div className="mt-3 flex items-center justify-between rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4">
-                <div><p className="font-bold text-emerald-950">{selectedCustomer.name}</p><p className="text-sm text-emerald-800">{selectedCustomer.phone} · Current due {money.format(selectedCustomer.outstandingAmount)}</p></div>
-                <button type="button" onClick={() => setSelectedCustomer(null)} className="text-sm font-bold text-emerald-800">Change</button>
-              </div>
-            ) : (
-              <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-slate-200 p-1">
-                {customers.length === 0 ? <p className="p-3 text-sm text-slate-500">No active customers found. Create one in Khata first.</p> : customers.map((customer) => (
-                  <button key={customer.id} type="button" onClick={() => { setSelectedCustomer(customer); setCustomerQuery(customer.name); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left hover:bg-indigo-50">
-                    <div><p className="text-sm font-bold">{customer.name}</p><p className="text-xs text-slate-500">{customer.phone}</p></div>
-                    <span className="text-xs font-bold text-red-700">Due {money.format(customer.outstandingAmount)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">This bill will be added to the selected customer’s Khata balance.</p>
-          </div>
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">This bill will be added to the selected customer’s Khata balance.</p>
         ) : (
           <label className="mt-5 block text-sm font-bold text-slate-700">{mode} reference <span className="font-normal text-slate-400">(optional)</span><input autoFocus value={reference} onChange={(event) => setReference(event.target.value)} maxLength={100} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-600" placeholder="Transaction / approval reference" /></label>
         )}
@@ -634,10 +653,11 @@ function ReceiptPrintSurface({ invoice }: { invoice: PosInvoiceResponse }) {
 function ThermalReceipt({ invoice }: { invoice: PosInvoiceResponse }) {
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
   const compact = width === 58;
+  const customer = invoice.payments.find((payment) => payment.customerId);
   return (
     <article className="thermal-receipt bg-white font-mono text-black" style={{ width: `${width}mm`, padding: compact ? "3mm" : "4mm", fontSize: compact ? "8pt" : "9pt", lineHeight: 1.35 }}>
       <header className="text-center"><h1 className="font-sans text-base font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}</p>{invoice.store.gstin && <p>GSTIN: {invoice.store.gstin}</p>}</header>
-      <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span><span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local" : "Interstate"}</span></div></div>
+      <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span><span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local" : "Interstate"}</span></div>{customer && <div className="mt-1"><span>Customer: {customer.customerName}</span>{customer.customerPhone && <span> · {customer.customerPhone}</span>}</div>}</div>
       <table className="w-full table-fixed"><thead><tr className="border-b border-black"><th className="w-[48%] text-left">Item</th><th className="w-[14%] text-right">Qty</th><th className="w-[18%] text-right">Rate</th><th className="w-[20%] text-right">Amt</th></tr></thead><tbody>{invoice.totals.lines.map((line) => <tr key={line.lineNumber} className="align-top"><td className="pr-1">{line.receiptName}</td><td className="text-right">{line.quantity}</td><td className="text-right">{line.unitPrice.toFixed(2)}</td><td className="text-right">{line.lineTotal.toFixed(2)}</td></tr>)}</tbody></table>
       <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}<ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.customerName ? `${payment.mode} · ${payment.customerName}` : payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
       <footer className="mt-3 text-center"><p className="font-bold">Thank you. Visit again!</p><p className="mt-1 text-[0.85em]">Computer-generated invoice</p></footer>

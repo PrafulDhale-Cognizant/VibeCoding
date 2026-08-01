@@ -5,6 +5,7 @@ import com.simplifiedbilling.inventory.service.ProductService;
 import com.simplifiedbilling.khata.service.KhataService;
 import com.simplifiedbilling.pos.service.SalesReportSnapshot;
 import com.simplifiedbilling.pos.service.SalesReportingService;
+import com.simplifiedbilling.pos.repository.SalesReportQueryRepository;
 import com.simplifiedbilling.report.dto.ReportResponses;
 import com.simplifiedbilling.report.mapper.ReportMapper;
 import com.simplifiedbilling.report.service.ReportService;
@@ -31,6 +32,7 @@ public class DefaultReportService implements ReportService {
     private final ProductService productService;
     private final KhataService khataService;
     private final StoreService storeService;
+    private final SalesReportQueryRepository insightsRepository;
     private final ReportMapper mapper;
     private final Clock clock;
 
@@ -39,12 +41,14 @@ public class DefaultReportService implements ReportService {
             ProductService productService,
             KhataService khataService,
             StoreService storeService,
+            SalesReportQueryRepository insightsRepository,
             ReportMapper mapper,
             Clock clock) {
         this.salesReportingService = salesReportingService;
         this.productService = productService;
         this.khataService = khataService;
         this.storeService = storeService;
+        this.insightsRepository = insightsRepository;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -56,6 +60,11 @@ public class DefaultReportService implements ReportService {
         Instant generatedAt = Instant.now(clock);
         LocalDate today = generatedAt.atZone(zone).toLocalDate();
         SalesReportSnapshot sales = loadSales(today, today, zone);
+        SalesReportSnapshot month = loadSales(today.withDayOfMonth(1), today, zone);
+        SalesReportSnapshot year = loadSales(today.withDayOfYear(1), today, zone);
+        SalesReportSnapshot trend = loadSales(today.minusDays(29), today, zone);
+        Instant insightStart = today.minusDays(29).atStartOfDay(zone).toInstant();
+        Instant insightEnd = today.plusDays(1).atStartOfDay(zone).toInstant();
         var lowStock = productService.getStockAlerts(
                 StockStatus.LOW_STOCK, 0, ALERT_LIMIT);
         var outOfStock = productService.getStockAlerts(
@@ -67,6 +76,16 @@ public class DefaultReportService implements ReportService {
                 zone.getId(),
                 store.shopName(),
                 mapper.toSalesSummary(sales),
+                mapper.toSalesSummary(month),
+                mapper.toSalesSummary(year),
+                trend.dailySales().stream().map(mapper::toDailySales).toList(),
+                insightsRepository.findTopProducts(insightStart, insightEnd, 8).stream()
+                        .map(row -> new ReportResponses.TopProductResponse(
+                                row.productId(), row.productName(), row.quantity(), row.netSales())).toList(),
+                insightsRepository.findRecentTransactions(10).stream()
+                        .map(row -> new ReportResponses.RecentTransactionResponse(
+                                row.id(), row.referenceNumber(), row.type(), row.occurredAt(),
+                                row.amount(), row.customerName())).toList(),
                 new ReportResponses.InventoryAlertSummaryResponse(
                         lowStock.totalElements(),
                         outOfStock.totalElements(),
