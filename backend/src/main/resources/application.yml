@@ -5,8 +5,8 @@ spring:
     timeout-per-shutdown-phase: 20s
   datasource:
     url: ${BILLING_DB_URL:jdbc:mysql://127.0.0.1:3306/billing?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${BILLING_DB_USERNAME:billing_app}
-    password: ${BILLING_DB_PASSWORD}
+    username: ${BILLING_DB_USERNAME:root}
+    password: ${BILLING_DB_PASSWORD:root}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 1

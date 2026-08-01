@@ -12,6 +12,7 @@ const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
 
 let mainWindow;
 let backendProcess;
+let backupTimer;
 const BACKUP_MAGIC = Buffer.from("SBK1");
 
 protocol.registerSchemesAsPrivileged([
@@ -144,6 +145,51 @@ function decryptFile(sourcePath, targetPath, password) {
 
 function backupStatusPath() { return path.join(app.getPath("userData"), "backup-status.json"); }
 function recordBackupStatus(status) { fs.writeFileSync(backupStatusPath(), JSON.stringify(status), { mode: 0o600 }); }
+function backupSchedulePath() { return path.join(app.getPath("userData"), "backup-schedule.json"); }
+
+function readBackupSchedule(includeSecret = false) {
+  try {
+    const schedule = JSON.parse(fs.readFileSync(backupSchedulePath(), "utf8"));
+    if (!includeSecret) return { enabled: true, destination: schedule.destination,
+      retention: schedule.retention, lastAttemptAt: schedule.lastAttemptAt || null };
+    if (!safeStorage.isEncryptionAvailable()) throw new Error("Operating-system encryption is unavailable.");
+    return { ...schedule, password: safeStorage.decryptString(Buffer.from(schedule.encryptedPassword, "base64")) };
+  } catch { return null; }
+}
+
+function writeBackupSchedule(destination, password, retention) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error("Operating-system encryption is unavailable.");
+  const encryptedPassword = safeStorage.encryptString(password).toString("base64");
+  fs.writeFileSync(backupSchedulePath(), JSON.stringify({ destination, retention, encryptedPassword,
+    lastAttemptAt: null }), { mode: 0o600 });
+}
+
+async function runScheduledBackupIfDue() {
+  const schedule = readBackupSchedule(true);
+  if (!schedule) return;
+  const last = schedule.lastAttemptAt ? Date.parse(schedule.lastAttemptAt) : 0;
+  if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+  const attempt = new Date().toISOString();
+  const target = path.join(schedule.destination, `simplified-billing-scheduled-${attempt.replace(/[:.]/g, "-")}.sbk`);
+  try {
+    await createBackupToPath(target, schedule.password);
+    const backups = fs.readdirSync(schedule.destination)
+      .filter((name) => /^simplified-billing-scheduled-.*\.sbk$/i.test(name))
+      .map((name) => ({ name, path: path.join(schedule.destination, name), time: fs.statSync(path.join(schedule.destination, name)).mtimeMs }))
+      .sort((left, right) => right.time - left.time);
+    backups.slice(schedule.retention).forEach((backup) => fs.unlinkSync(backup.path));
+  } finally {
+    const stored = JSON.parse(fs.readFileSync(backupSchedulePath(), "utf8"));
+    stored.lastAttemptAt = attempt;
+    fs.writeFileSync(backupSchedulePath(), JSON.stringify(stored), { mode: 0o600 });
+  }
+}
+
+function startBackupScheduler() {
+  void runScheduledBackupIfDue().catch((error) => console.error("Scheduled backup failed.", error));
+  backupTimer = setInterval(() => void runScheduledBackupIfDue().catch(
+    (error) => console.error("Scheduled backup failed.", error)), 60 * 60 * 1000);
+}
 
 async function createBackupToPath(targetPath, password) {
   const config = databaseConfig();
@@ -194,7 +240,8 @@ function sanitizedDiagnostics() {
     packaged: app.isPackaged, apiBaseUrl: getApiBaseUrl(), backendManaged: Boolean(backendProcess),
     backendJarPresent: Boolean(backendJar && fs.existsSync(backendJar)),
     database: { host: databaseConfig().host, port: databaseConfig().port, database: databaseConfig().database },
-    disk, logFilePresent: fs.existsSync(logFile), backup: readBackupStatus()
+    disk, logFilePresent: fs.existsSync(logFile), backup: readBackupStatus(),
+    backupSchedule: readBackupSchedule(false)
   };
 }
 
@@ -396,6 +443,26 @@ if (!hasSingleInstanceLock) {
       if (selected.canceled || !selected.filePath) return null;
       return createBackupToPath(selected.filePath, password);
     });
+    ipcMain.handle("billing:backup:schedule", async (event, options) => {
+      assertTrustedIpcSender(event);
+      const password = requireBackupPassword(options?.password);
+      const retention = Number(options?.retention);
+      if (!Number.isInteger(retention) || retention < 1 || retention > 30) {
+        throw new Error("Scheduled backup retention must be between 1 and 30 files.");
+      }
+      const selected = await dialog.showOpenDialog(mainWindow, {
+        title: "Choose scheduled backup folder", properties: ["openDirectory", "createDirectory"]
+      });
+      if (selected.canceled || !selected.filePaths[0]) return null;
+      writeBackupSchedule(selected.filePaths[0], password, retention);
+      await runScheduledBackupIfDue();
+      return readBackupSchedule(false);
+    });
+    ipcMain.handle("billing:backup:schedule:disable", (event) => {
+      assertTrustedIpcSender(event);
+      if (fs.existsSync(backupSchedulePath())) fs.unlinkSync(backupSchedulePath());
+      return true;
+    });
     ipcMain.handle("billing:backup:restore", async (event, rawPassword) => {
       assertTrustedIpcSender(event);
       const password = requireBackupPassword(rawPassword);
@@ -557,6 +624,7 @@ if (!hasSingleInstanceLock) {
     });
 
     startBackendIfConfigured();
+    startBackupScheduler();
     createWindow();
 
     app.on("activate", () => {
@@ -569,6 +637,7 @@ if (!hasSingleInstanceLock) {
 
 app.on("before-quit", () => {
   app.isQuitting = true;
+  if (backupTimer) clearInterval(backupTimer);
   stopBackend();
 });
 

@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("billingDesktop", {
   getDiagnostics: () => ipcRenderer.invoke("billing:diagnostics:get"),
   exportSupportBundle: () => ipcRenderer.invoke("billing:diagnostics:export"),
   createBackup: (password) => ipcRenderer.invoke("billing:backup:create", password),
+  configureBackupSchedule: (password, retention) => ipcRenderer.invoke("billing:backup:schedule", { password, retention }),
+  disableBackupSchedule: () => ipcRenderer.invoke("billing:backup:schedule:disable"),
   restoreBackup: (password) => ipcRenderer.invoke("billing:backup:restore", password),
   applyOfflineUpdate: (password) => ipcRenderer.invoke("billing:update:apply", password),
   listPrinters: () => ipcRenderer.invoke("billing:printers:list"),

@@ -18,9 +18,12 @@ interface BillingDesktopBridge {
     disk: { freeBytes: number; totalBytes: number } | null;
     logFilePresent: boolean;
     backup: { successful: boolean; createdAt?: string; failedAt?: string; fileName?: string; size?: number; message?: string } | null;
+    backupSchedule: { enabled: boolean; destination: string; retention: number; lastAttemptAt: string | null } | null;
   }>;
   exportSupportBundle: () => Promise<{ fileName: string } | null>;
   createBackup: (password: string) => Promise<{ successful: boolean; createdAt: string; fileName: string; size: number } | null>;
+  configureBackupSchedule: (password: string, retention: number) => Promise<{ enabled: boolean; destination: string; retention: number; lastAttemptAt: string | null } | null>;
+  disableBackupSchedule: () => Promise<boolean>;
   restoreBackup: (password: string) => Promise<{ restoredAt: string; preRestoreBackup: string } | null>;
   applyOfflineUpdate: (password: string) => Promise<{ version: string; preUpdateBackup: string } | null>;
   listPrinters: () => Promise<Array<{ name: string; displayName: string; isDefault: boolean; status: number }>>;
