@@ -56,6 +56,7 @@ signing material rather than application business logic.
 
 - [Software Requirements Specification](./Simplified-Billing-Inventory-SRS.pdf)
 - [Editable SRS source](./Simplified-Billing-Inventory-SRS.html)
+- [Step-by-step Windows EXE build guide](./Exe.md)
 
 ## Architecture
 
