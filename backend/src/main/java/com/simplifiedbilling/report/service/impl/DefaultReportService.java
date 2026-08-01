@@ -5,7 +5,7 @@ import com.simplifiedbilling.inventory.service.ProductService;
 import com.simplifiedbilling.khata.service.KhataService;
 import com.simplifiedbilling.pos.service.SalesReportSnapshot;
 import com.simplifiedbilling.pos.service.SalesReportingService;
-import com.simplifiedbilling.pos.repository.SalesReportQueryRepository;
+import com.simplifiedbilling.pos.service.SalesInsightsService;
 import com.simplifiedbilling.report.dto.ReportResponses;
 import com.simplifiedbilling.report.mapper.ReportMapper;
 import com.simplifiedbilling.report.service.ReportService;
@@ -32,7 +32,7 @@ public class DefaultReportService implements ReportService {
     private final ProductService productService;
     private final KhataService khataService;
     private final StoreService storeService;
-    private final SalesReportQueryRepository insightsRepository;
+    private final SalesInsightsService insightsService;
     private final ReportMapper mapper;
     private final Clock clock;
 
@@ -41,14 +41,14 @@ public class DefaultReportService implements ReportService {
             ProductService productService,
             KhataService khataService,
             StoreService storeService,
-            SalesReportQueryRepository insightsRepository,
+            SalesInsightsService insightsService,
             ReportMapper mapper,
             Clock clock) {
         this.salesReportingService = salesReportingService;
         this.productService = productService;
         this.khataService = khataService;
         this.storeService = storeService;
-        this.insightsRepository = insightsRepository;
+        this.insightsService = insightsService;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -79,10 +79,10 @@ public class DefaultReportService implements ReportService {
                 mapper.toSalesSummary(month),
                 mapper.toSalesSummary(year),
                 trend.dailySales().stream().map(mapper::toDailySales).toList(),
-                insightsRepository.findTopProducts(insightStart, insightEnd, 8).stream()
+                insightsService.getTopProducts(insightStart, insightEnd, 8).stream()
                         .map(row -> new ReportResponses.TopProductResponse(
                                 row.productId(), row.productName(), row.quantity(), row.netSales())).toList(),
-                insightsRepository.findRecentTransactions(10).stream()
+                insightsService.getRecentTransactions(10).stream()
                         .map(row -> new ReportResponses.RecentTransactionResponse(
                                 row.id(), row.referenceNumber(), row.type(), row.occurredAt(),
                                 row.amount(), row.customerName())).toList(),

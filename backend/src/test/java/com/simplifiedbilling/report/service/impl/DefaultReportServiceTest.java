@@ -10,6 +10,7 @@ import com.simplifiedbilling.khata.service.KhataService;
 import com.simplifiedbilling.pos.domain.PaymentMode;
 import com.simplifiedbilling.pos.service.SalesReportSnapshot;
 import com.simplifiedbilling.pos.service.SalesReportingService;
+import com.simplifiedbilling.pos.service.SalesInsightsService;
 import com.simplifiedbilling.report.dto.ReportResponses;
 import com.simplifiedbilling.report.mapper.ReportMapper;
 import com.simplifiedbilling.shared.exception.ApplicationException;
@@ -48,6 +49,7 @@ class DefaultReportServiceTest {
     @Mock private ProductService productService;
     @Mock private KhataService khataService;
     @Mock private StoreService storeService;
+    @Mock private SalesInsightsService insightsService;
     private DefaultReportService service;
 
     @BeforeEach
@@ -57,6 +59,7 @@ class DefaultReportServiceTest {
                 productService,
                 khataService,
                 storeService,
+                insightsService,
                 new ReportMapper(),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -74,6 +77,8 @@ class DefaultReportServiceTest {
                 .thenReturn(page(List.of(out), 2));
         when(khataService.getSummary()).thenReturn(
                 new KhataResponses.SummaryResponse(money("900"), 3, 10));
+        when(insightsService.getTopProducts(any(), any(), eq(8))).thenReturn(List.of());
+        when(insightsService.getRecentTransactions(10)).thenReturn(List.of());
 
         ReportResponses.DashboardResponse dashboard = service.getDashboard();
 
