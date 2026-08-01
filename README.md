@@ -21,13 +21,13 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - full and partial sales returns, controlled cancellation and cumulative quantity protection
 - saleable or damaged return classification, refund records and Udhaar balance reversal
 - original-price, discount, GST and purchase-cost return snapshots with printable credit notes
-- scanner-first 70/30 POS workspace with Cash, UPI and Card collection
+- scanner-first 70/30 POS workspace with theme-aware cart/checkout surfaces and customer capture for every payment mode
 - 58 mm and 80 mm thermal receipt preview and operating-system printing
 - customer accounts, append-only credit statements and locked outstanding balances
 - atomic Udhaar checkout plus idempotent full or partial settlements
 - Khata receivable summary, customer search, maintenance and statement workspace
 - store-timezone-aware sales, GST, payment-mode and gross-margin reporting
-- daily KPI dashboard with inventory alerts and Khata exposure
+- owner dashboard with daily/monthly/yearly KPIs, revenue trends, top products, recent activity, inventory alerts and customer exposure
 - printable A4 period reports and UTF-8 CSV export
 - supplier contacts, payable balances, statements and idempotent supplier payments
 - purchase receiving with GST-aware immutable line snapshots and supplier invoice references
@@ -44,7 +44,7 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - optional development MySQL Compose configuration
 - recoverable and held POS carts plus persistent failed-receipt print retry
 - inventory CSV preview/import/export and locally persisted physical-count drafts
-- AES-256-GCM manual backup/restore with pre-restore safety backup
+- one-click AES-256-GCM full database/configuration backup and restore with startup recovery and a pre-restore safety backup
 - local diagnostics, printer discovery/test print and sanitized support export
 - signed offline-update verification with a mandatory pre-update backup
 
@@ -560,6 +560,7 @@ trusted during checkout.
 | `POST` | `/api/v1/pos/quote` | Recalculate a cart using current product and tax data |
 | `POST` | `/api/v1/pos/checkout` | Atomically save the invoice, payments, stock deductions and ledger entries |
 | `GET` | `/api/v1/pos/invoices/{invoiceId}` | Retrieve an immutable invoice and receipt snapshot |
+| `GET` | `/api/v1/invoices?query=...&page=0&size=25` | Owner/Admin invoice search by number, customer or phone |
 
 Every checkout requires an `Idempotency-Key` header containing 8-80 safe characters. Retrying a
 completed request with the same key returns the existing invoice rather than deducting stock
@@ -574,10 +575,11 @@ entry and scanners that terminate with Enter add the item immediately. Keyboard 
 - `F4`: save/print the current bill, or reprint the completed receipt
 - `Esc`: clear the current cart after confirmation
 
-Cash, UPI, Card and customer-linked Udhaar are implemented. The backend supports split payment
-records, while the first desktop workflow collects one mode per bill. Udhaar requires an active
-customer and creates the invoice, payment, stock deduction and Khata credit entry in one database
-transaction.
+Cash, UPI, Card and customer-linked Udhaar are implemented. Checkout can search or create a
+customer for every payment mode and stores immutable name/phone snapshots on the payment and
+receipt. The backend supports split payment records, while the first desktop workflow collects one
+mode per bill. Udhaar requires an active customer and creates the invoice, payment, stock deduction
+and Khata credit entry in one database transaction.
 
 ## Sales returns and cancellation API
 
@@ -596,6 +598,8 @@ Saleable items are restored under a locked `SALE_RETURN` stock transaction; dama
 out of saleable inventory. Cash, UPI and Card refunds are recorded separately, while Udhaar
 reversals write an immutable Khata entry and cannot reduce the customer balance below zero. Sales,
 tax, payment and gross-margin reports recognize returns in the business period when they occur.
+The return workspace also displays recent/search-matched invoices so an operator can select the
+source bill instead of entering an exact invoice number.
 
 ## Khata API and desktop workflow
 
@@ -625,7 +629,7 @@ Inventory Manager roles do not receive profit or store-wide revenue data.
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/reports/dashboard` | Return today's sales KPIs, payments, inventory alerts and Khata exposure |
+| `GET` | `/api/v1/reports/dashboard` | Return daily/monthly/yearly sales, trend, profit, product, transaction, inventory and customer insights |
 | `GET` | `/api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD` | Return an inclusive daily sales, tax, cost and gross-margin report |
 
 Business-day boundaries are calculated in the timezone saved in shop settings and converted to
@@ -640,11 +644,27 @@ statement because it does not include overheads, returns or other expenses.
 The desktop Dashboard & Reports workspace provides:
 
 - today's sales, completed bill count, gross margin and Khata outstanding
+- month-to-date and year-to-date sales/profit performance
+- 30-day revenue trend, top-selling products and recent sales/return activity
+- complete paged invoice search for Owner and Admin roles
 - Cash, UPI, Card and Udhaar totals
 - low-stock and out-of-stock counters with priority items
 - inclusive date filters and daily sales/margin activity
 - operating-system A4 printing through the restricted Electron bridge
 - UTF-8 CSV export for spreadsheet analysis
+
+## Backup, restore and startup recovery
+
+The installed desktop application creates a one-click encrypted `.sbk` file in its managed backup
+directory. Version 2 backups contain the complete MySQL dump plus `simplified-billing.*` desktop
+configuration (theme, inactivity settings, held carts and other local preferences). Existing
+database-only version 1 backups remain restorable.
+
+Restore is deliberately available only when Electron manages the packaged backend lifecycle. It
+validates and decrypts the selected backup, creates a pre-restore safety backup, stops the backend,
+imports MySQL, restarts the backend and reapplies the saved desktop configuration. At application
+startup, the desktop scans managed, scheduled and pre-update backup locations and offers the latest
+valid recovery point before normal setup or sign-in.
 
 ## Desktop appearance and themes
 

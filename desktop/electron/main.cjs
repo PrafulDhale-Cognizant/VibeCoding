@@ -271,7 +271,9 @@ function decryptBackupToSql(sourcePath, sqlPath, password) {
       fs.writeFileSync(sqlPath, Buffer.from(payload.databaseSql, "base64"), { mode: 0o600 });
       return normalizeBackupConfiguration(payload.configuration);
     } catch (error) {
-      if (bytes.subarray(0, 32).toString("utf8").includes("simplified-billing-backup")) throw error;
+      if (bytes.toString("utf8", 0, Math.min(bytes.length, 128)).trimStart().startsWith("{")) {
+        throw new Error(`The backup payload is damaged or unsupported: ${error.message}`);
+      }
       fs.writeFileSync(sqlPath, bytes, { mode: 0o600 });
       return {};
     }
@@ -290,7 +292,7 @@ async function restoreBackupFromPath(source, password) {
   let stopped = false;
   try {
     const configuration = decryptBackupToSql(source, temporary, password);
-    await createBackupToPath(preRestore, password, configuration);
+    await createBackupToPath(preRestore, password);
     await stopBackendAsync(); stopped = true;
     await runDatabaseTool(process.env.BILLING_MYSQL_CLIENT || "mysql", [
       "--host", config.host, "--port", config.port, "--user", config.username,
