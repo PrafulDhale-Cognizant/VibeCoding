@@ -22,8 +22,9 @@ import { ReportsPanel } from "./reports/ReportsPanel";
 import { PurchasingPanel } from "./purchasing/PurchasingPanel";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { ThemeSettings } from "./ThemeSettings";
+import { OperationsPanel } from "./OperationsPanel";
 
-type Section = "home" | "pos" | "returns" | "khata" | "inventory" | "purchases" | "reports" | "store" | "users" | "account";
+type Section = "home" | "pos" | "returns" | "khata" | "inventory" | "purchases" | "reports" | "operations" | "store" | "users" | "account";
 
 const roleLabels: Record<UserRole, string> = {
   OWNER: "Owner",
@@ -49,6 +50,22 @@ export function Workspace({
   onPasswordChanged: () => Promise<void>;
 }) {
   const [section, setSection] = useState<Section>("home");
+
+  useEffect(() => {
+    const configured = Number(localStorage.getItem("simplified-billing.security.inactivity-minutes") ?? "15");
+    if (!Number.isFinite(configured) || configured <= 0) return;
+    let timer = window.setTimeout(() => void onLogout(), configured * 60_000);
+    const reset = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void onLogout(), configured * 60_000);
+    };
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((name) => window.addEventListener(name, reset, { passive: true }));
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((name) => window.removeEventListener(name, reset));
+    };
+  }, [onLogout]);
   const canAdminister = session.user.roles.some((role) => role === "OWNER" || role === "ADMIN");
   const canReadInventory = session.user.roles.some((role) =>
     role === "OWNER" || role === "ADMIN" || role === "INVENTORY_MANAGER" || role === "VIEWER"
@@ -74,6 +91,7 @@ export function Workspace({
     { id: "inventory", label: "Inventory", visible: canReadInventory, icon: "inventory" },
     { id: "purchases", label: "Purchases & suppliers", visible: canUsePurchasing, icon: "purchases" },
     { id: "reports", label: "Dashboard & reports", visible: canViewReports, icon: "reports" },
+    { id: "operations", label: "Backup & diagnostics", visible: canAdminister, icon: "system" },
     { id: "store", label: "Shop settings", visible: true, icon: "store" },
     { id: "users", label: "Users & roles", visible: canAdminister, icon: "users" },
     { id: "account", label: "My account", visible: true, icon: "account" }
@@ -154,6 +172,8 @@ export function Workspace({
                     ? "Stock receiving & supplier payables"
                     : section === "reports"
                       ? "Sales, margin & operational insights"
+                    : section === "operations"
+                      ? "Backup, recovery & local health"
                     : "Store setup & authentication"}
             </p>
             <h2>{activeItem?.label}</h2>
@@ -178,6 +198,7 @@ export function Workspace({
           {section === "reports" && canViewReports && (
             <ReportsPanel accessToken={session.accessToken} />
           )}
+          {section === "operations" && canAdminister && <OperationsPanel />}
           {section === "store" && (
             <StorePanel accessToken={session.accessToken} canEdit={canAdminister} />
           )}

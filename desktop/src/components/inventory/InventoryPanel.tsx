@@ -13,6 +13,8 @@ import { CategoryManagerModal } from "./CategoryManagerModal";
 import { BarcodeLabelModal } from "./BarcodeLabelModal";
 import { ProductEditorModal } from "./ProductEditorModal";
 import { StockLedgerModal } from "./StockLedgerModal";
+import { InventoryCsvModal } from "./InventoryCsvModal";
+import { PhysicalStockCountModal } from "./PhysicalStockCountModal";
 
 const emptyPage: InventoryPage<ProductResponse> = {
   content: [],
@@ -38,6 +40,11 @@ function formatMoney(value: number) {
 
 function formatQuantity(value: number) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 3 }).format(value);
+}
+
+function csv(value: unknown) {
+  const text = value == null ? "" : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 export function InventoryPanel({
@@ -67,6 +74,8 @@ export function InventoryPanel({
   const [editingProduct, setEditingProduct] = useState<ProductResponse | null | undefined>(undefined);
   const [stockProduct, setStockProduct] = useState<ProductResponse | null>(null);
   const [labelProduct, setLabelProduct] = useState<ProductResponse | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [showPhysicalCount, setShowPhysicalCount] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,6 +160,31 @@ export function InventoryPanel({
     setPage(0);
   }
 
+  async function exportCsv() {
+    setError(""); setSuccess(""); setLoading(true);
+    try {
+      const all: ProductResponse[] = []; let exportPage = 0; let result: InventoryPage<ProductResponse>;
+      do {
+        result = await api.searchProducts(accessToken, {
+          query, categoryId, active: activeFilter === "all" ? null : activeFilter === "active",
+          stockStatus, page: exportPage++, size: 100, sort
+        });
+        all.push(...result.content);
+      } while (!result.last);
+      const header = ["name", "receiptName", "sku", "barcode", "category", "unit", "hsnCode", "gstRate", "purchaseCost", "sellingPrice", "openingStock", "minimumStockLevel"];
+      const lines = [header.join(","), ...all.map((product) => [
+        product.name, product.receiptName, product.sku, product.barcode, product.category.name,
+        product.unit, product.hsnCode, product.gstRate, product.purchaseCost, product.sellingPrice,
+        product.stockQuantity, product.minimumStockLevel
+      ].map(csv).join(","))];
+      const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+      link.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`; link.click();
+      URL.revokeObjectURL(link.href); setSuccess(`${all.length} products exported.`);
+    } catch (caught) { setError(messageFrom(caught, "Inventory export failed.")); }
+    finally { setLoading(false); }
+  }
+
   return (
     <div className="mx-auto max-w-[1500px] space-y-6">
       {error && <ErrorNotice message={error} />}
@@ -210,15 +244,12 @@ export function InventoryPanel({
               <h3 className="text-lg font-bold">Products</h3>
               <p className="mt-1 text-sm text-slate-500">Search by name, receipt name, SKU or barcode.</p>
             </div>
-            {canWrite && (
-              <button
-                type="button"
-                onClick={() => setShowCategories(true)}
-                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Manage categories
-              </button>
-            )}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => void exportCsv()} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Export CSV</button>
+              {canWrite && <button type="button" onClick={() => setShowCsvImport(true)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Import CSV</button>}
+              {canWrite && <button type="button" onClick={() => setShowPhysicalCount(true)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Physical count</button>}
+              {canWrite && <button type="button" onClick={() => setShowCategories(true)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Manage categories</button>}
+            </div>
           </div>
           <div className="mt-5 grid grid-cols-[minmax(260px,1.4fr)_1fr_170px_150px_170px] gap-3">
             <TextInput
@@ -394,6 +425,10 @@ export function InventoryPanel({
           onClose={() => setLabelProduct(null)}
         />
       )}
+      {showCsvImport && <InventoryCsvModal accessToken={accessToken} categories={categories} units={units}
+        onClose={() => setShowCsvImport(false)} onImported={(message) => { setShowCsvImport(false); refresh(message); }} />}
+      {showPhysicalCount && <PhysicalStockCountModal accessToken={accessToken}
+        onClose={() => setShowPhysicalCount(false)} onPosted={(message) => { setShowPhysicalCount(false); refresh(message); }} />}
     </div>
   );
 }

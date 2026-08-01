@@ -32,6 +32,7 @@ interface HeldCart extends CartDraft { id: string; name: string; heldAt: string;
 
 const ACTIVE_DRAFT_KEY = "simplified-billing.pos.active-draft.v1";
 const HELD_CARTS_KEY = "simplified-billing.pos.held-carts.v1";
+const PRINT_QUEUE_KEY = "simplified-billing.pos.print-queue.v1";
 
 function loadStored<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "") as T; }
@@ -77,6 +78,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   const [billDiscountValue, setBillDiscountValue] = useState(recovered?.billDiscountValue ?? 0);
   const [taxMode, setTaxMode] = useState<TaxMode>(recovered?.taxMode ?? "INTRA_STATE");
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>(() => loadStored(HELD_CARTS_KEY, []));
+  const [printQueue, setPrintQueue] = useState<PosInvoiceResponse[]>(() => loadStored(PRINT_QUEUE_KEY, []));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [invoice, setInvoice] = useState<PosInvoiceResponse | null>(null);
 
@@ -100,6 +102,8 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   useEffect(() => {
     localStorage.setItem(HELD_CARTS_KEY, JSON.stringify(heldCarts));
   }, [heldCarts]);
+
+  useEffect(() => { localStorage.setItem(PRINT_QUEUE_KEY, JSON.stringify(printQueue)); }, [printQueue]);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -291,8 +295,10 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
       } else {
         window.print();
       }
+      setPrintQueue((current) => current.filter((item) => item.id !== receipt.id));
     } catch (caught) {
       setError(messageFrom(caught, "The receipt could not be printed."));
+      setPrintQueue((current) => current.some((item) => item.id === receipt.id) ? current : [...current, receipt]);
     }
   }
 
@@ -318,6 +324,9 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
           {heldCarts.length > 0 && <div className="flex items-center gap-2 border-b border-slate-200 bg-amber-50 px-5 py-2 text-xs">
             <strong className="text-amber-900">Held:</strong>
             {heldCarts.map((held) => <button key={held.id} type="button" onClick={() => resumeCart(held)} className="rounded-full bg-white px-3 py-1 font-bold text-amber-900 shadow-sm" title={new Date(held.heldAt).toLocaleString("en-IN")}>{held.name} · {held.cart.length}</button>)}
+          </div>}
+          {printQueue.length > 0 && <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-2 text-xs">
+            <strong className="text-red-900">Print retry:</strong>{printQueue.map((queued) => <button key={queued.id} type="button" onClick={() => setInvoice(queued)} className="rounded-full bg-white px-3 py-1 font-bold text-red-800 shadow-sm">{queued.invoiceNumber}</button>)}
           </div>}
 
           {cart.length === 0 ? (
