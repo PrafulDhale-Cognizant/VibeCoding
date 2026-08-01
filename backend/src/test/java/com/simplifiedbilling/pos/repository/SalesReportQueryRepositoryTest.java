@@ -59,6 +59,28 @@ class SalesReportQueryRepositoryTest {
                     amount DECIMAL(19,2) NOT NULL
                 )
                 """);
+        jdbc.execute("""
+                CREATE TABLE sale_returns (
+                    id VARCHAR(36) PRIMARY KEY, invoice_id VARCHAR(36) NOT NULL,
+                    return_type VARCHAR(16) NOT NULL, subtotal_amount DECIMAL(19,2) NOT NULL,
+                    discount_amount DECIMAL(19,2) NOT NULL, taxable_amount DECIMAL(19,2) NOT NULL,
+                    cgst_amount DECIMAL(19,2) NOT NULL, sgst_amount DECIMAL(19,2) NOT NULL,
+                    igst_amount DECIMAL(19,2) NOT NULL, total_amount DECIMAL(19,2) NOT NULL,
+                    returned_at TIMESTAMP NOT NULL
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE sale_return_items (
+                    id VARCHAR(36) PRIMARY KEY, sale_return_id VARCHAR(36) NOT NULL,
+                    purchase_cost DECIMAL(19,2) NOT NULL, quantity DECIMAL(19,3) NOT NULL
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE refund_records (
+                    id VARCHAR(36) PRIMARY KEY, sale_return_id VARCHAR(36) NOT NULL,
+                    refund_mode VARCHAR(16) NOT NULL, amount DECIMAL(19,2) NOT NULL
+                )
+                """);
     }
 
     @Test
@@ -72,12 +94,17 @@ class SalesReportQueryRepositoryTest {
         jdbc.update("INSERT INTO invoice_items VALUES (?, ?, ?, ?)", "item-1", "one", 40, 2);
         jdbc.update("INSERT INTO payments VALUES (?, ?, ?, ?)", "payment-1", "one", "CASH", 80);
         jdbc.update("INSERT INTO payments VALUES (?, ?, ?, ?)", "payment-2", "one", "UDHAAR", 38);
+        jdbc.update("INSERT INTO sale_returns VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "return-two", "two", "CANCELLATION", 50, 0, 50, 0, 0, 0, 50,
+                Timestamp.from(Instant.parse("2026-07-31T07:00:00Z")));
+        jdbc.update("INSERT INTO sale_return_items VALUES (?, ?, ?, ?)", "return-item", "return-two", 0, 1);
+        jdbc.update("INSERT INTO refund_records VALUES (?, ?, ?, ?)", "refund-two", "return-two", "CASH", 50);
 
         var totals = repository.findFinancialTotals(START, END);
         var margins = repository.findInvoiceMargins(START, END);
         var payments = repository.findPaymentTotals(START, END);
 
-        assertThat(totals.billCount()).isEqualTo(1);
+        assertThat(totals.billCount()).isEqualTo(2);
         assertThat(totals.subtotalAmount()).isEqualByComparingTo("120.00");
         assertThat(totals.discountAmount()).isEqualByComparingTo("10.00");
         assertThat(totals.taxableAmount()).isEqualByComparingTo("100.00");
@@ -86,11 +113,12 @@ class SalesReportQueryRepositoryTest {
         assertThat(totals.igstAmount()).isEqualByComparingTo("0.00");
         assertThat(totals.roundOffAmount()).isEqualByComparingTo("0.00");
         assertThat(totals.totalSales()).isEqualByComparingTo("118.00");
-        assertThat(margins).singleElement().satisfies(row -> {
+        assertThat(margins).filteredOn(row -> row.invoiceId().equals("one")).singleElement().satisfies(row -> {
             assertThat(row.invoiceId()).isEqualTo("one");
             assertThat(row.completedAt()).isEqualTo(Instant.parse("2026-07-31T05:00:00Z"));
             assertThat(row.totalSales()).isEqualByComparingTo("118.00");
             assertThat(row.snapshotCost()).isEqualByComparingTo("80.00000");
+            assertThat(row.billCountDelta()).isEqualTo(1);
         });
         assertThat(payments).extracting(SalesReportQueryRepository.PaymentTotalRow::paymentMode)
                 .containsExactlyInAnyOrder(PaymentMode.CASH, PaymentMode.UDHAAR);

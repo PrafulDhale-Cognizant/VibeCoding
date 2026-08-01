@@ -291,7 +291,7 @@ public class DefaultSaleReturnService implements SaleReturnService {
                 value.getSgstAmount(), value.getIgstAmount(), value.getTotalAmount(), value.getReturnedAt(),
                 value.getItems().stream().map(item -> new SaleReturnResponses.ReturnLine(
                         item.getInvoiceItem().getId(), item.getLineNumber(), item.getProductId(), item.getProductName(),
-                        item.getUnit(), item.getQuantity(), item.getDisposition(), item.getGrossAmount(),
+                        item.getUnit(), item.getQuantity(), item.getDisposition(), item.getPurchaseCost(), item.getGrossAmount(),
                         item.getDiscountAmount(), item.getTaxableAmount(), item.getCgstAmount(), item.getSgstAmount(),
                         item.getIgstAmount(), item.getLineTotal())).toList(),
                 value.getRefunds().stream().map(refund -> new SaleReturnResponses.Refund(

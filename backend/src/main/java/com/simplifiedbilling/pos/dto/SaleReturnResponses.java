@@ -28,7 +28,7 @@ public final class SaleReturnResponses {
     public record ReturnLine(
             String invoiceItemId, int lineNumber, String productId, String productName,
             ProductUnit unit, BigDecimal quantity, ReturnDisposition disposition,
-            BigDecimal grossAmount, BigDecimal discountAmount, BigDecimal taxableAmount,
+            BigDecimal purchaseCost, BigDecimal grossAmount, BigDecimal discountAmount, BigDecimal taxableAmount,
             BigDecimal cgstAmount, BigDecimal sgstAmount, BigDecimal igstAmount,
             BigDecimal lineTotal) { }
 

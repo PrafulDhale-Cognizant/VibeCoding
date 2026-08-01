@@ -4,8 +4,8 @@ An offline-first, desktop-installable billing and inventory application for smal
 grocery shops.
 
 This repository contains the technical foundation and the completed **Store Setup &
-Authentication**, **Inventory Management**, **Point of Sale**, **Khata**, **Dashboard & Reports**,
-and **Purchase & Supplier Management** modules:
+Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns & Refunds**,
+**Khata**, **Dashboard & Reports**, and **Purchase & Supplier Management** modules:
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
@@ -18,6 +18,9 @@ and **Purchase & Supplier Management** modules:
 - paged product search, low-stock alerts and locked stock adjustments
 - server-authoritative POS quotes, GST, discounts, rounding and idempotent checkout
 - atomically locked sale deductions, immutable invoices, line snapshots and payment records
+- full and partial sales returns, controlled cancellation and cumulative quantity protection
+- saleable or damaged return classification, refund records and Udhaar balance reversal
+- original-price, discount, GST and purchase-cost return snapshots with printable credit notes
 - scanner-first 70/30 POS workspace with Cash, UPI and Card collection
 - 58 mm and 80 mm thermal receipt preview and operating-system printing
 - customer accounts, append-only credit statements and locked outstanding balances
@@ -39,8 +42,15 @@ and **Purchase & Supplier Management** modules:
 - security-hardened Electron shell
 - operating-system-encrypted desktop session persistence
 - optional development MySQL Compose configuration
+- recoverable and held POS carts plus persistent failed-receipt print retry
+- inventory CSV preview/import/export and locally persisted physical-count drafts
+- AES-256-GCM manual backup/restore with pre-restore safety backup
+- local diagnostics, printer discovery/test print and sanitized support export
+- signed offline-update verification with a mandatory pre-update backup
 
-Production-grade backup/restore remains a separate implementation milestone.
+Managed MySQL distribution, a minimized private Java runtime, installer signing and clean-machine
+acceptance remain release-engineering gates because they depend on licensing decisions and private
+signing material rather than application business logic.
 
 ## Documentation
 
@@ -348,10 +358,9 @@ npm --prefix desktop run package:win
 
 Output is written to `desktop/release/`.
 
-> The current packaging file is a foundation, not yet the final shop installer. The packaged
-> application can include the backend JAR, but the private Java runtime, managed MySQL
-> lifecycle, database initialization, encrypted backup recovery and installer signing are part of
-> the desktop-operations milestone.
+> The current packaging file includes the backend and desktop operations, but the private Java
+> runtime, managed MySQL lifecycle, database initialization and installer signing still require
+> release-specific artifacts and credentials.
 
 > **Distribution review required:** MySQL Community Edition is GPL-licensed. Before redistributing
 > MySQL server binaries inside a proprietary installer, obtain project-specific licensing review
@@ -372,6 +381,9 @@ Output is written to `desktop/release/`.
 | `BILLING_API_BASE_URL` | No | `http://127.0.0.1:8080` | Electron renderer API location |
 | `BILLING_BACKEND_JAR` | No | Packaged resource path | Optional backend JAR to launch from Electron |
 | `BILLING_LOG_FILE` | No | `logs/billing-backend.log` | Backend rolling-log location |
+| `BILLING_MYSQLDUMP` | No | `mysqldump` on `PATH` | MySQL dump executable used for encrypted backup |
+| `BILLING_MYSQL_CLIENT` | No | `mysql` on `PATH` | MySQL client executable used for restore |
+| `BILLING_UPDATE_PUBLIC_KEY` | Release | Packaged `update-public-key.pem` | PEM public key text or path used to verify offline-update manifests |
 | `BILLING_JWT_ISSUER` | No | `simplified-billing-desktop` | Expected JWT issuer |
 | `BILLING_JWT_SECRET_BASE64` | Recommended | Development-only fallback | Base64 HMAC secret; decode length must be at least 32 bytes |
 | `BILLING_ACCESS_TOKEN_TTL` | No | `15m` | Short-lived access-token duration |
@@ -426,6 +438,10 @@ The current migrations create:
 - `billing.purchase_return_sequences`
 - `billing.purchase_returns`
 - `billing.purchase_return_items`
+- `billing.sale_return_sequences`
+- `billing.sale_returns`
+- `billing.sale_return_items`
+- `billing.refund_records`
 - supporting audit, catalog, barcode, stock-ledger, invoice and purchasing indexes
 
 ## Store setup and authentication API
@@ -562,6 +578,24 @@ Cash, UPI, Card and customer-linked Udhaar are implemented. The backend supports
 records, while the first desktop workflow collects one mode per bill. Udhaar requires an active
 customer and creates the invoice, payment, stock deduction and Khata credit entry in one database
 transaction.
+
+## Sales returns and cancellation API
+
+Return and cancellation mutations require Owner or Admin access. Every operation is idempotent,
+locks the original invoice, preserves its line snapshots and prevents cumulative returned quantity
+from exceeding the quantity sold.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/pos/return-source?invoiceNumber=...` | Load an invoice with returned and returnable quantities |
+| `POST` | `/api/v1/pos/invoices/{invoiceId}/returns` | Complete a full or partial sale return |
+| `POST` | `/api/v1/pos/invoices/{invoiceId}/cancel` | Cancel and fully reverse an untouched invoice |
+| `GET` | `/api/v1/pos/returns/{saleReturnId}` | Retrieve an immutable return or credit-note snapshot |
+
+Saleable items are restored under a locked `SALE_RETURN` stock transaction; damaged items remain
+out of saleable inventory. Cash, UPI and Card refunds are recorded separately, while Udhaar
+reversals write an immutable Khata entry and cannot reduce the customer balance below zero. Sales,
+tax, payment and gross-margin reports recognize returns in the business period when they occur.
 
 ## Khata API and desktop workflow
 
@@ -729,17 +763,15 @@ npm run dev
 
 Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables certificate validation.
 
-## Next implementation milestone
+## Release engineering gates
 
-Store setup, authentication, inventory, POS, Khata, Dashboard & Reports, Purchase & Supplier
-Management, and Purchase Returns & Supplier Analytics are complete. The next business slice is
-**Sales Returns & Refunds**:
+The planned business slices are implemented. Production deployment still requires:
 
-1. full and partial customer returns against immutable invoice lines
-2. locked stock restoration with `SALE_RETURN` ledger references
-3. Cash, UPI and Card refund records plus Udhaar balance reversal
-4. original-price, discount and GST snapshot calculations
-5. printable return receipts and sales-return analytics
+1. project-specific approval of the MySQL redistribution model
+2. bundling and testing a minimized Java 21 runtime and the approved database distribution
+3. configuring the offline-update public key and protecting the corresponding private signing key
+4. code-signing the Windows installer and update packages
+5. clean-machine install, upgrade, restore, crash-recovery and user-acceptance testing
 
-Encrypted backup/restore, managed local database lifecycle and installer hardening remain part of
-the desktop-operations milestone before production deployment.
+These gates must be completed with the target deployment environment and release credentials; the
+repository intentionally does not contain private keys, commercial database binaries or passwords.

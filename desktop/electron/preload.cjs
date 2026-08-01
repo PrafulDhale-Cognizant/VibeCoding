@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("billingDesktop", {
   exportSupportBundle: () => ipcRenderer.invoke("billing:diagnostics:export"),
   createBackup: (password) => ipcRenderer.invoke("billing:backup:create", password),
   restoreBackup: (password) => ipcRenderer.invoke("billing:backup:restore", password),
+  applyOfflineUpdate: (password) => ipcRenderer.invoke("billing:update:apply", password),
   listPrinters: () => ipcRenderer.invoke("billing:printers:list"),
   testPrinter: (deviceName) => ipcRenderer.invoke("billing:printers:test", deviceName),
   printBarcodeLabels: (options) => ipcRenderer.invoke("billing:print:barcode-labels", options),

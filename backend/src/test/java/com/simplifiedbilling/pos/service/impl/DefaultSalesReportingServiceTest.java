@@ -74,7 +74,7 @@ class DefaultSalesReportingServiceTest {
     private SalesReportQueryRepository.InvoiceMarginRow margin(
             String id, String at, String sales, String cost) {
         return new SalesReportQueryRepository.InvoiceMarginRow(
-                id, Instant.parse(at), money(sales), money(cost));
+                id, Instant.parse(at), money(sales), money(cost), 1);
     }
 
     private BigDecimal money(String value) {

@@ -86,7 +86,7 @@ public class DefaultSalesReportingService implements SalesReportingService {
         private BigDecimal cost = ZERO;
 
         void add(InvoiceMarginRow invoice) {
-            billCount++;
+            billCount += invoice.billCountDelta();
             sales = sales.add(invoice.totalSales());
             cost = cost.add(invoice.snapshotCost());
         }

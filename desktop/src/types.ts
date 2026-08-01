@@ -388,6 +388,7 @@ export interface SaleReturnResponse {
     unit: ProductUnit;
     quantity: number;
     disposition: ReturnDisposition;
+    purchaseCost: number;
     grossAmount: number;
     discountAmount: number;
     taxableAmount: number;

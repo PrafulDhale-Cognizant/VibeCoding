@@ -22,6 +22,7 @@ interface BillingDesktopBridge {
   exportSupportBundle: () => Promise<{ fileName: string } | null>;
   createBackup: (password: string) => Promise<{ successful: boolean; createdAt: string; fileName: string; size: number } | null>;
   restoreBackup: (password: string) => Promise<{ restoredAt: string; preRestoreBackup: string } | null>;
+  applyOfflineUpdate: (password: string) => Promise<{ version: string; preUpdateBackup: string } | null>;
   listPrinters: () => Promise<Array<{ name: string; displayName: string; isDefault: boolean; status: number }>>;
   testPrinter: (deviceName: string) => Promise<boolean>;
   printBarcodeLabels: (options: { widthMm: number; heightMm: number }) => Promise<void>;

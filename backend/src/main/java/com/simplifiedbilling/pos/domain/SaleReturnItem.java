@@ -37,6 +37,7 @@ public class SaleReturnItem {
     @Column(precision = 19, scale = 3, nullable = false, updatable = false) private BigDecimal quantity;
     @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 16, nullable = false, updatable = false) private ReturnDisposition disposition;
+    @Column(name = "purchase_cost", precision = 19, scale = 2, nullable = false, updatable = false) private BigDecimal purchaseCost;
     @Column(name = "unit_price", precision = 19, scale = 2, nullable = false, updatable = false) private BigDecimal unitPrice;
     @Column(name = "gst_rate", precision = 5, scale = 2, nullable = false, updatable = false) private BigDecimal gstRate;
     @Column(name = "gross_amount", precision = 19, scale = 2, nullable = false, updatable = false) private BigDecimal grossAmount;
@@ -56,6 +57,7 @@ public class SaleReturnItem {
         item.lineNumber = source.getLineNumber(); item.productId = source.getProductId();
         item.productName = source.getProductName(); item.unit = source.getUnit();
         item.quantity = selection.quantity(); item.disposition = selection.disposition();
+        item.purchaseCost = source.getPurchaseCost();
         item.unitPrice = source.getUnitPrice(); item.gstRate = source.getGstRate();
         item.grossAmount = selection.grossAmount(); item.discountAmount = selection.discountAmount();
         item.taxableAmount = selection.taxableAmount(); item.cgstAmount = selection.cgstAmount();
@@ -72,6 +74,7 @@ public class SaleReturnItem {
     public ProductUnit getUnit() { return unit; }
     public BigDecimal getQuantity() { return quantity; }
     public ReturnDisposition getDisposition() { return disposition; }
+    public BigDecimal getPurchaseCost() { return purchaseCost; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public BigDecimal getGstRate() { return gstRate; }
     public BigDecimal getGrossAmount() { return grossAmount; }

@@ -70,6 +70,13 @@ export function OperationsPanel() {
         }} className="rounded-xl border border-red-300 px-5 py-3 font-bold text-red-700 disabled:opacity-40">Restore backup</button></div>
     </section>
 
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Signed offline update</h3>
+      <p className="mt-1 text-sm text-slate-500">Select an installer accompanied by its signed JSON manifest and signature file. A verified encrypted backup is created before installation.</p>
+      <button disabled={busy || password.length < 12 || !diagnostics?.packaged} onClick={() => {
+        if (window.confirm("Verify the update, create a pre-update backup, and close the application to install it?")) void action(() => window.billingDesktop!.applyOfflineUpdate(password), "Update verified and started.");
+      }} className="mt-5 rounded-xl border border-indigo-300 px-5 py-3 font-bold text-indigo-700 disabled:opacity-40">Install offline update</button>
+    </section>
+
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Printers</h3>
       <p className="mt-1 text-sm text-slate-500">Printers discovered through the operating system.</p>
       <div className="mt-5 divide-y rounded-xl border border-slate-200">{printers.length === 0 ? <p className="p-4 text-sm text-slate-500">No printers detected.</p> : printers.map((printer) => <div key={printer.name} className="flex items-center justify-between p-4"><div><p className="font-bold">{printer.displayName || printer.name}</p><p className="text-xs text-slate-500">{printer.isDefault ? "Default printer" : `Status ${printer.status}`}</p></div>

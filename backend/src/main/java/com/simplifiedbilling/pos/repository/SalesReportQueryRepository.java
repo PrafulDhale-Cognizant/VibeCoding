@@ -14,44 +14,77 @@ import java.util.Objects;
 public class SalesReportQueryRepository {
 
     private static final String TOTALS_SQL = """
-            SELECT COUNT(*) AS bill_count,
-                   COALESCE(SUM(subtotal_amount), 0) AS subtotal_amount,
-                   COALESCE(SUM(line_discount_amount + bill_discount_amount), 0) AS discount_amount,
-                   COALESCE(SUM(taxable_amount), 0) AS taxable_amount,
-                   COALESCE(SUM(cgst_amount), 0) AS cgst_amount,
-                   COALESCE(SUM(sgst_amount), 0) AS sgst_amount,
-                   COALESCE(SUM(igst_amount), 0) AS igst_amount,
-                   COALESCE(SUM(round_off_amount), 0) AS round_off_amount,
-                   COALESCE(SUM(total_amount), 0) AS total_sales
-              FROM invoices
-             WHERE status = 'COMPLETED'
-               AND completed_at >= ?
-               AND completed_at < ?
+            SELECT sales.bill_count AS bill_count,
+                   sales.subtotal_amount - returned.subtotal_amount AS subtotal_amount,
+                   sales.discount_amount - returned.discount_amount AS discount_amount,
+                   sales.taxable_amount - returned.taxable_amount AS taxable_amount,
+                   sales.cgst_amount - returned.cgst_amount AS cgst_amount,
+                   sales.sgst_amount - returned.sgst_amount AS sgst_amount,
+                   sales.igst_amount - returned.igst_amount AS igst_amount,
+                   sales.round_off_amount - returned.round_off_amount AS round_off_amount,
+                   sales.total_sales - returned.total_amount AS total_sales
+              FROM (
+                    SELECT COUNT(*) AS bill_count,
+                           COALESCE(SUM(subtotal_amount), 0) AS subtotal_amount,
+                           COALESCE(SUM(line_discount_amount + bill_discount_amount), 0) AS discount_amount,
+                           COALESCE(SUM(taxable_amount), 0) AS taxable_amount,
+                           COALESCE(SUM(cgst_amount), 0) AS cgst_amount,
+                           COALESCE(SUM(sgst_amount), 0) AS sgst_amount,
+                           COALESCE(SUM(igst_amount), 0) AS igst_amount,
+                           COALESCE(SUM(round_off_amount), 0) AS round_off_amount,
+                           COALESCE(SUM(total_amount), 0) AS total_sales
+                      FROM invoices WHERE completed_at >= ? AND completed_at < ?
+                   ) sales
+              CROSS JOIN (
+                    SELECT COALESCE(SUM(subtotal_amount), 0) AS subtotal_amount,
+                           COALESCE(SUM(discount_amount), 0) AS discount_amount,
+                           COALESCE(SUM(taxable_amount), 0) AS taxable_amount,
+                           COALESCE(SUM(cgst_amount), 0) AS cgst_amount,
+                           COALESCE(SUM(sgst_amount), 0) AS sgst_amount,
+                           COALESCE(SUM(igst_amount), 0) AS igst_amount,
+                           COALESCE(SUM(total_amount - taxable_amount - cgst_amount - sgst_amount - igst_amount), 0) AS round_off_amount,
+                           COALESCE(SUM(total_amount), 0) AS total_amount
+                      FROM sale_returns WHERE returned_at >= ? AND returned_at < ?
+                   ) returned
             """;
 
     private static final String INVOICE_MARGIN_SQL = """
-            SELECT invoice.id,
-                   invoice.completed_at,
-                   invoice.total_amount,
-                   COALESCE(SUM(item.purchase_cost * item.quantity), 0) AS snapshot_cost
-              FROM invoices invoice
-              LEFT JOIN invoice_items item ON item.invoice_id = invoice.id
-             WHERE invoice.status = 'COMPLETED'
-               AND invoice.completed_at >= ?
-               AND invoice.completed_at < ?
-             GROUP BY invoice.id, invoice.completed_at, invoice.total_amount
-             ORDER BY invoice.completed_at, invoice.id
+            SELECT activity.id, activity.activity_at, activity.total_amount,
+                   activity.snapshot_cost, activity.bill_count_delta
+              FROM (
+                    SELECT invoice.id AS id, invoice.completed_at AS activity_at,
+                           invoice.total_amount AS total_amount,
+                           COALESCE(SUM(item.purchase_cost * item.quantity), 0) AS snapshot_cost,
+                           1 AS bill_count_delta
+                      FROM invoices invoice
+                      LEFT JOIN invoice_items item ON item.invoice_id = invoice.id
+                     WHERE invoice.completed_at >= ? AND invoice.completed_at < ?
+                     GROUP BY invoice.id, invoice.completed_at, invoice.total_amount
+                    UNION ALL
+                    SELECT sale_return.id AS id, sale_return.returned_at AS activity_at,
+                           -sale_return.total_amount AS total_amount,
+                           -COALESCE(SUM(item.purchase_cost * item.quantity), 0) AS snapshot_cost,
+                           0 AS bill_count_delta
+                      FROM sale_returns sale_return
+                      LEFT JOIN sale_return_items item ON item.sale_return_id = sale_return.id
+                     WHERE sale_return.returned_at >= ? AND sale_return.returned_at < ?
+                     GROUP BY sale_return.id, sale_return.returned_at, sale_return.total_amount
+                   ) activity
+             ORDER BY activity.activity_at, activity.id
             """;
 
     private static final String PAYMENT_TOTALS_SQL = """
-            SELECT payment.payment_mode,
-                   COALESCE(SUM(payment.amount), 0) AS payment_total
-              FROM payments payment
-              JOIN invoices invoice ON invoice.id = payment.invoice_id
-             WHERE invoice.status = 'COMPLETED'
-               AND invoice.completed_at >= ?
-               AND invoice.completed_at < ?
-             GROUP BY payment.payment_mode
+            SELECT movement.payment_mode, COALESCE(SUM(movement.amount), 0) AS payment_total
+              FROM (
+                    SELECT payment.payment_mode, payment.amount
+                      FROM payments payment JOIN invoices invoice ON invoice.id = payment.invoice_id
+                     WHERE invoice.completed_at >= ? AND invoice.completed_at < ?
+                    UNION ALL
+                    SELECT refund.refund_mode AS payment_mode, -refund.amount AS amount
+                      FROM refund_records refund JOIN sale_returns sale_return ON sale_return.id = refund.sale_return_id
+                     WHERE sale_return.returned_at >= ? AND sale_return.returned_at < ?
+                   ) movement
+             GROUP BY movement.payment_mode
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -74,6 +107,8 @@ public class SalesReportQueryRepository {
                         resultSet.getBigDecimal("round_off_amount"),
                         resultSet.getBigDecimal("total_sales")),
                 Timestamp.from(startInclusive),
+                Timestamp.from(endExclusive),
+                Timestamp.from(startInclusive),
                 Timestamp.from(endExclusive)));
     }
 
@@ -84,9 +119,12 @@ public class SalesReportQueryRepository {
                 INVOICE_MARGIN_SQL,
                 (resultSet, rowNumber) -> new InvoiceMarginRow(
                         resultSet.getString("id"),
-                        resultSet.getTimestamp("completed_at").toInstant(),
+                        resultSet.getTimestamp("activity_at").toInstant(),
                         resultSet.getBigDecimal("total_amount"),
-                        resultSet.getBigDecimal("snapshot_cost")),
+                        resultSet.getBigDecimal("snapshot_cost"),
+                        resultSet.getLong("bill_count_delta")),
+                Timestamp.from(startInclusive),
+                Timestamp.from(endExclusive),
                 Timestamp.from(startInclusive),
                 Timestamp.from(endExclusive));
     }
@@ -99,6 +137,8 @@ public class SalesReportQueryRepository {
                 (resultSet, rowNumber) -> new PaymentTotalRow(
                         PaymentMode.valueOf(resultSet.getString("payment_mode")),
                         resultSet.getBigDecimal("payment_total")),
+                Timestamp.from(startInclusive),
+                Timestamp.from(endExclusive),
                 Timestamp.from(startInclusive),
                 Timestamp.from(endExclusive));
     }
@@ -119,7 +159,8 @@ public class SalesReportQueryRepository {
             String invoiceId,
             Instant completedAt,
             BigDecimal totalSales,
-            BigDecimal snapshotCost) {
+            BigDecimal snapshotCost,
+            long billCountDelta) {
     }
 
     public record PaymentTotalRow(PaymentMode paymentMode, BigDecimal amount) {

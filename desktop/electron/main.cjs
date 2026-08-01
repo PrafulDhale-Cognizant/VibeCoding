@@ -198,6 +198,44 @@ function sanitizedDiagnostics() {
   };
 }
 
+function compareVersions(left, right) {
+  const a = String(left).split(".").map(Number); const b = String(right).split(".").map(Number);
+  for (let index = 0; index < Math.max(a.length, b.length); index++) {
+    const difference = (a[index] || 0) - (b[index] || 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+function updatePublicKey() {
+  const configured = process.env.BILLING_UPDATE_PUBLIC_KEY;
+  if (configured) return configured.includes("BEGIN PUBLIC KEY") ? configured : fs.readFileSync(configured, "utf8");
+  const packagedKey = path.join(process.resourcesPath, "update-public-key.pem");
+  if (!fs.existsSync(packagedKey)) throw new Error("No offline-update verification key is configured.");
+  return fs.readFileSync(packagedKey, "utf8");
+}
+
+function verifyUpdatePackage(installerPath) {
+  const manifestPath = `${installerPath}.json`; const signaturePath = `${installerPath}.sig`;
+  if (!fs.existsSync(manifestPath) || !fs.existsSync(signaturePath)) {
+    throw new Error("The update requires matching .json manifest and .sig signature files.");
+  }
+  const manifestBytes = fs.readFileSync(manifestPath);
+  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+  const installerHash = crypto.createHash("sha256").update(fs.readFileSync(installerPath)).digest("hex");
+  if (manifest.product !== "Simplified Billing" || manifest.sha256 !== installerHash) {
+    throw new Error("The update manifest is incompatible or its installer hash does not match.");
+  }
+  if (compareVersions(manifest.version, app.getVersion()) <= 0) {
+    throw new Error(`Update version ${manifest.version} is not newer than ${app.getVersion()}.`);
+  }
+  const signature = Buffer.from(fs.readFileSync(signaturePath, "utf8").trim(), "base64");
+  if (!crypto.verify("sha256", manifestBytes, updatePublicKey(), signature)) {
+    throw new Error("The update signature is invalid.");
+  }
+  return manifest;
+}
+
 function resolveJavaExecutable() {
   const executableName = process.platform === "win32" ? "java.exe" : "java";
   const packagedRuntime = path.join(process.resourcesPath, "runtime", "bin", executableName);
@@ -390,6 +428,30 @@ if (!hasSingleInstanceLock) {
         if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
         if (stopped) startBackendIfConfigured();
       }
+    });
+    ipcMain.handle("billing:update:apply", async (event, rawPassword) => {
+      assertTrustedIpcSender(event);
+      const password = requireBackupPassword(rawPassword);
+      if (process.platform !== "win32" || !app.isPackaged) {
+        throw new Error("Offline updates are available only in the installed Windows application.");
+      }
+      const selected = await dialog.showOpenDialog(mainWindow, {
+        title: "Select signed offline update installer",
+        properties: ["openFile"],
+        filters: [{ name: "Simplified Billing update", extensions: ["exe"] }]
+      });
+      if (selected.canceled || !selected.filePaths[0]) return null;
+      const installerPath = selected.filePaths[0];
+      const manifest = verifyUpdatePackage(installerPath);
+      const backupDirectory = path.join(app.getPath("userData"), "pre-update-backups");
+      fs.mkdirSync(backupDirectory, { recursive: true });
+      const backupPath = path.join(backupDirectory,
+        `pre-update-${app.getVersion()}-${new Date().toISOString().replace(/[:.]/g, "-")}.sbk`);
+      await createBackupToPath(backupPath, password);
+      const child = spawn(installerPath, ["/S"], { detached: true, stdio: "ignore", windowsHide: true });
+      child.unref();
+      setImmediate(() => app.quit());
+      return { version: manifest.version, preUpdateBackup: path.basename(backupPath) };
     });
     ipcMain.handle("billing:printers:list", async (event) => {
       assertTrustedIpcSender(event);
