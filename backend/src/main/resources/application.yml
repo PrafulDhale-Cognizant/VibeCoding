@@ -26,6 +26,9 @@ spring:
     default-schema: billing
     schemas: billing
     locations: classpath:db/migration
+    # Recovers databases that reached V10 while the corrected, rerunnable V9
+    # was temporarily absent. It is harmless for clean, sequential installs.
+    out-of-order: ${BILLING_FLYWAY_OUT_OF_ORDER:true}
   jackson:
     time-zone: UTC
   mvc:
