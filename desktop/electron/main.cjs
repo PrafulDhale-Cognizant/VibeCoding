@@ -526,7 +526,8 @@ if (!hasSingleInstanceLock) {
     ipcMain.handle("billing:backup:startup-recovery", (event) => {
       assertTrustedIpcSender(event);
       const backup = latestBackup();
-      return backup ? { ...backup, restoreAvailable: Boolean(app.isPackaged && resolveBackendJar()) } : null;
+      return backup ? { fileName: backup.fileName, createdAt: backup.createdAt, size: backup.size,
+        restoreAvailable: Boolean(app.isPackaged && resolveBackendJar()) } : null;
     });
     ipcMain.handle("billing:backup:create", async (event, rawPassword, rawConfiguration) => {
       assertTrustedIpcSender(event);
