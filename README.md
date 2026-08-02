@@ -582,6 +582,11 @@ receipt. The backend supports split payment records, while the first desktop wor
 mode per bill. Udhaar requires an active customer and creates the invoice, payment, stock deduction
 and Khata credit entry in one database transaction.
 
+Customer GSTIN is optional per bill. Without a valid GSTIN, POS performs a simple subtotal-minus-
+discount calculation and stores zero taxable, CGST, SGST and IGST amounts. Entering a valid GSTIN
+enables the configured inclusive/exclusive GST calculation and the selected intra-state or
+inter-state split. The GSTIN is snapshotted with the invoice and printed on GST receipts.
+
 ## Sales returns and cancellation API
 
 Return and cancellation mutations require Owner or Admin access. Every operation is idempotent,

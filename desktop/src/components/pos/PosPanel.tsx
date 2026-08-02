@@ -371,7 +371,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                             <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{index + 1}</span>
                             <div className="min-w-0">
                               <p className="truncate font-bold text-slate-900">{line.product.name}</p>
-                              <p className="mt-1 truncate font-mono text-xs text-slate-500">{line.product.barcode} · GST {line.product.gstRate}%</p>
+                              <p className="mt-1 truncate font-mono text-xs text-slate-500">{line.product.barcode}{hasCustomerGstin ? ` · GST ${line.product.gstRate}%` : ""}</p>
                               <button type="button" onClick={() => mutateCart((current) => current.filter((item) => item.product.id !== line.product.id))} className="mt-2 text-xs font-bold text-red-600 hover:text-red-700">Remove</button>
                             </div>
                           </div>

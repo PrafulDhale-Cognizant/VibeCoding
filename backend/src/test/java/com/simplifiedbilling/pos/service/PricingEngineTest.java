@@ -84,7 +84,8 @@ class PricingEngineTest {
                 product("rice", ProductUnit.PIECE, "100", "18", "5")));
 
         assertThat(result.customerGstin()).isNull();
-        assertThat(result.taxableAmount()).isEqualByComparingTo("100.00");
+        assertThat(result.taxableAmount()).isZero();
+        assertThat(result.lines().getFirst().taxableAmount()).isZero();
         assertThat(result.cgstAmount()).isZero();
         assertThat(result.sgstAmount()).isZero();
         assertThat(result.igstAmount()).isZero();

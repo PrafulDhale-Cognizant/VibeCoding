@@ -15,7 +15,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 @Component
 public class PricingEngine {
@@ -32,7 +31,8 @@ public class PricingEngine {
 
     public PricingResult calculate(
             PosRequests.QuoteRequest request,
-            List<SaleProductSnapshot> products) {
+            List<SaleProductSnapshot> products,
+            boolean applyGst) {
         if (request == null || request.items() == null || request.items().isEmpty()) {
             throw invalid("EMPTY_CART", "Add at least one item.");
         }
@@ -40,8 +40,6 @@ public class PricingEngine {
             throw invalid("INVALID_CART", "Cart products could not be resolved.");
         }
         TaxMode taxMode = request.taxMode() == null ? TaxMode.INTRA_STATE : request.taxMode();
-        String customerGstin = normalizeGstin(request.customerGstin());
-        boolean applyGst = customerGstin != null;
 
         List<DraftLine> drafts = new ArrayList<>();
         BigDecimal subtotal = ZERO;
@@ -91,7 +89,7 @@ public class PricingEngine {
             BigDecimal taxable;
             BigDecimal tax;
             if (!applyGst) {
-                taxable = discounted;
+                taxable = ZERO;
                 tax = ZERO;
             } else if (properties.pricesIncludeGst()) {
                 taxable = money(discounted.multiply(ONE_HUNDRED)
@@ -129,13 +127,9 @@ public class PricingEngine {
                 : money(unroundedTotal);
         BigDecimal roundOff = total.subtract(unroundedTotal);
         return new PricingResult(
-                List.copyOf(lines), taxMode, properties.pricesIncludeGst(), customerGstin, money(subtotal),
+                List.copyOf(lines), taxMode, properties.pricesIncludeGst(), applyGst, money(subtotal),
                 money(totalLineDiscount), money(billDiscount), money(taxableTotal), money(cgstTotal),
                 money(sgstTotal), money(igstTotal), money(roundOff), money(total));
-    }
-
-    private String normalizeGstin(String value) {
-        return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private BigDecimal quantity(BigDecimal value, SaleProductSnapshot product) {
