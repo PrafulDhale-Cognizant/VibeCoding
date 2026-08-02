@@ -73,9 +73,25 @@ class DefaultPosServiceTest {
         PosRequests.QuoteRequest request = quoteRequest();
         SaleProductSnapshot product = product();
         PricingResult pricing = pricing();
+        StoreDetails store = store();
         PosResponses.QuoteResponse response = org.mockito.Mockito.mock(PosResponses.QuoteResponse.class);
         when(inventoryService.getSaleProducts(List.of("product-1"))).thenReturn(List.of(product));
-        when(pricingEngine.calculate(request, List.of(product))).thenReturn(pricing);
+        when(storeService.getStore()).thenReturn(store);
+        when(pricingEngine.calculate(request, List.of(product), true)).thenReturn(pricing);
+        when(mapper.toQuote(pricing)).thenReturn(response);
+
+        assertThat(service.quote(request)).isSameAs(response);
+    }
+
+    @Test
+    void disablesGstWhenShopHasNoConfiguredGstin() {
+        PosRequests.QuoteRequest request = quoteRequest();
+        SaleProductSnapshot product = product();
+        PricingResult pricing = pricing();
+        PosResponses.QuoteResponse response = org.mockito.Mockito.mock(PosResponses.QuoteResponse.class);
+        when(inventoryService.getSaleProducts(List.of("product-1"))).thenReturn(List.of(product));
+        when(storeService.getStore()).thenReturn(storeWithoutGst());
+        when(pricingEngine.calculate(request, List.of(product), false)).thenReturn(pricing);
         when(mapper.toQuote(pricing)).thenReturn(response);
 
         assertThat(service.quote(request)).isSameAs(response);
@@ -115,6 +131,7 @@ class DefaultPosServiceTest {
         assertThat(invoice.getInvoiceNumber()).isEqualTo("INV-000001");
         assertThat(invoice.getIdempotencyKey()).isEqualTo(KEY);
         assertThat(invoice.getCashierUserId()).isEqualTo("actor");
+        assertThat(invoice.isGstApplied()).isTrue();
         assertThat(invoice.getNotes()).isEqualTo("Counter sale");
         assertThat(invoice.getPayments()).hasSize(3);
         assertThat(invoice.getPayments().getFirst().getTenderedAmount()).isEqualByComparingTo("50.00");
@@ -224,14 +241,14 @@ class DefaultPosServiceTest {
         SaleProductSnapshot product = product();
         when(invoiceRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.empty());
         when(inventoryService.deductForSale(eq("actor"), any(), any())).thenReturn(List.of(product));
-        when(pricingEngine.calculate(eq(request), eq(List.of(product)))).thenReturn(pricing());
+        when(storeService.getStore()).thenReturn(store());
+        when(pricingEngine.calculate(eq(request), eq(List.of(product)), eq(true))).thenReturn(pricing());
     }
 
     private PosRequests.CheckoutRequest checkoutRequest(List<PosRequests.PaymentRequest> payments) {
         PosRequests.QuoteRequest quote = quoteRequest();
         return new PosRequests.CheckoutRequest(
                 quote.items(), quote.billDiscountType(), quote.billDiscountValue(), quote.taxMode(),
-                quote.customerGstin(),
                 payments, " Counter sale ");
     }
 
@@ -241,8 +258,7 @@ class DefaultPosServiceTest {
                         "product-1", BigDecimal.ONE, DiscountType.NONE, BigDecimal.ZERO)),
                 DiscountType.NONE,
                 BigDecimal.ZERO,
-                TaxMode.INTRA_STATE,
-                "27ABCDE1234F1Z5");
+                TaxMode.INTRA_STATE);
     }
 
     private PosRequests.PaymentRequest payment(
@@ -273,7 +289,7 @@ class DefaultPosServiceTest {
                 new BigDecimal("95.24"), new BigDecimal("2.38"), new BigDecimal("2.38"),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));
         return new PricingResult(
-                List.of(line), TaxMode.INTRA_STATE, true, "27ABCDE1234F1Z5", new BigDecimal("100.00"),
+                List.of(line), TaxMode.INTRA_STATE, true, true, new BigDecimal("100.00"),
                 BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2), new BigDecimal("95.24"),
                 new BigDecimal("2.38"), new BigDecimal("2.38"), BigDecimal.ZERO.setScale(2),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));
@@ -283,6 +299,13 @@ class DefaultPosServiceTest {
         return new StoreDetails(
                 "Shop", "Owner", "1 Main Road", null, "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, true, "27ABCDE1234F1Z5", "INR",
+                "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80, false, 0, NOW, NOW);
+    }
+
+    private StoreDetails storeWithoutGst() {
+        return new StoreDetails(
+                "Shop", "Owner", "1 Main Road", null, "Pune", "Maharashtra", "27",
+                "411001", "9999999999", null, false, null, "INR",
                 "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80, false, 0, NOW, NOW);
     }
 

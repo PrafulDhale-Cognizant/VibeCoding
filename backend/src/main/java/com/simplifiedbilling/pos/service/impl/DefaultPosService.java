@@ -75,7 +75,8 @@ public class DefaultPosService implements PosService {
     public PosResponses.QuoteResponse quote(PosRequests.QuoteRequest request) {
         List<SaleProductSnapshot> products = inventoryService.getSaleProducts(
                 request.items().stream().map(PosRequests.CartItemRequest::productId).toList());
-        return mapper.toQuote(pricingEngine.calculate(request, products));
+        StoreDetails store = storeService.getStore();
+        return mapper.toQuote(pricingEngine.calculate(request, products, isGstConfigured(store)));
     }
 
     @Override
@@ -97,9 +98,10 @@ public class DefaultPosService implements PosService {
                 request.items().stream()
                         .map(item -> new SaleStockRequest(item.productId(), item.quantity()))
                         .toList());
-        PricingResult pricing = pricingEngine.calculate(request.quoteRequest(), products);
-        List<PaymentAllocation> payments = validatePayments(request.payments(), pricing.totalAmount());
         StoreDetails store = storeService.getStore();
+        PricingResult pricing = pricingEngine.calculate(
+                request.quoteRequest(), products, isGstConfigured(store));
+        List<PaymentAllocation> payments = validatePayments(request.payments(), pricing.totalAmount());
         Instant now = Instant.now(clock);
         Invoice invoice = Invoice.completed(
                 invoiceId,
@@ -133,6 +135,10 @@ public class DefaultPosService implements PosService {
                         "INVOICE_NOT_FOUND",
                         "The invoice does not exist."));
         return mapper.toInvoice(invoice, storeService.getStore(), false);
+    }
+
+    private boolean isGstConfigured(StoreDetails store) {
+        return store.gstRegistered() && store.gstin() != null && !store.gstin().isBlank();
     }
 
     private List<PaymentAllocation> validatePayments(

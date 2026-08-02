@@ -50,7 +50,7 @@ class InvoiceDomainTest {
         assertThat(invoice.getCashierUserId()).isEqualTo("cashier-id");
         assertThat(invoice.getTaxMode()).isEqualTo(TaxMode.INTRA_STATE);
         assertThat(invoice.isPricesIncludeGst()).isTrue();
-        assertThat(invoice.getCustomerGstin()).isEqualTo("27ABCDE1234F1Z5");
+        assertThat(invoice.isGstApplied()).isTrue();
         assertThat(invoice.getSubtotalAmount()).isEqualByComparingTo("100.00");
         assertThat(invoice.getLineDiscountAmount()).isZero();
         assertThat(invoice.getBillDiscountAmount()).isZero();
@@ -107,7 +107,7 @@ class InvoiceDomainTest {
         assertThat(quote.lines()).hasSize(1);
         assertThat(quote.lines().getFirst().availableQuantity()).isEqualByComparingTo("9.000");
         assertThat(quote.lines().getFirst().name()).isEqualTo("Rice bag");
-        assertThat(quote.customerGstin()).isEqualTo("27ABCDE1234F1Z5");
+        assertThat(quote.gstApplied()).isTrue();
         assertThat(quote.totalAmount()).isEqualByComparingTo("100.00");
 
         Invoice invoice = Invoice.completed(
@@ -125,7 +125,7 @@ class InvoiceDomainTest {
         assertThat(response.store().address()).isEqualTo("Line 1, Line 2, Pune, Maharashtra 411001");
         assertThat(response.store().receiptWidth()).isEqualTo(ReceiptWidth.MM_58);
         assertThat(response.totals().lines().getFirst().availableQuantity()).isNull();
-        assertThat(response.totals().customerGstin()).isEqualTo("27ABCDE1234F1Z5");
+        assertThat(response.totals().gstApplied()).isTrue();
         assertThat(response.payments().getFirst().mode()).isEqualTo(PaymentMode.CARD);
         assertThat(response.payments().getFirst().reference()).isEqualTo("CARD-1");
         assertThat(response.idempotentReplay()).isTrue();
@@ -142,7 +142,7 @@ class InvoiceDomainTest {
                 new BigDecimal("95.24"), new BigDecimal("2.38"), new BigDecimal("2.38"),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));
         return new PricingResult(
-                List.of(line), TaxMode.INTRA_STATE, true, "27ABCDE1234F1Z5", new BigDecimal("100.00"),
+                List.of(line), TaxMode.INTRA_STATE, true, true, new BigDecimal("100.00"),
                 BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2), new BigDecimal("95.24"),
                 new BigDecimal("2.38"), new BigDecimal("2.38"), BigDecimal.ZERO.setScale(2),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));

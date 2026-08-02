@@ -216,7 +216,6 @@ export interface PosQuoteRequest {
   billDiscountType: DiscountType;
   billDiscountValue: number;
   taxMode: TaxMode;
-  customerGstin: string;
 }
 
 export interface PosQuoteLine {
@@ -244,7 +243,7 @@ export interface PosQuoteResponse {
   lines: PosQuoteLine[];
   taxMode: TaxMode;
   pricesIncludeGst: boolean;
-  customerGstin: string | null;
+  gstApplied: boolean;
   subtotalAmount: number;
   lineDiscountAmount: number;
   billDiscountAmount: number;

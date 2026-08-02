@@ -119,7 +119,7 @@ class DefaultSaleReturnServiceTest {
                 money("18"), money("30"), money("59"), quantity("10"));
         var line = new PricingLine(1, product, quantity("2"), money("118"), money("0"), money("0"),
                 money("100"), money("9"), money("9"), money("0"), money("118"));
-        var pricing = new PricingResult(List.of(line), TaxMode.INTRA_STATE, true, "27ABCDE1234F1Z5", money("118"), money("0"),
+        var pricing = new PricingResult(List.of(line), TaxMode.INTRA_STATE, true, true, money("118"), money("0"),
                 money("0"), money("100"), money("9"), money("9"), money("0"), money("0"), money("118"));
         return Invoice.completed("invoice", "INV-1", "checkout-key", "cashier", pricing,
                 List.of(new PaymentAllocation(PaymentMode.CASH, money("118"), money("118"), money("0"),

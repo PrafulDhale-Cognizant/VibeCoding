@@ -30,7 +30,7 @@ class PricingEngineTest {
 
         var result = engine.calculate(request, List.of(
                 product("rice", ProductUnit.PIECE, "100", "5", "10"),
-                product("oil", ProductUnit.LITRE, "150", "12", "4")));
+                product("oil", ProductUnit.LITRE, "150", "12", "4")), true);
 
         assertThat(result.lines()).hasSize(2);
         assertThat(result.subtotalAmount()).isEqualByComparingTo("350.00");
@@ -56,7 +56,7 @@ class PricingEngineTest {
                 TaxMode.INTER_STATE);
 
         var result = engine.calculate(request, List.of(
-                product("rice", ProductUnit.KILOGRAM, "80", "18", "5")));
+                product("rice", ProductUnit.KILOGRAM, "80", "18", "5")), true);
 
         assertThat(result.pricesIncludeGst()).isFalse();
         assertThat(result.taxMode()).isEqualTo(TaxMode.INTER_STATE);
@@ -71,19 +71,18 @@ class PricingEngineTest {
     }
 
     @Test
-    void calculatesSimpleSaleWithoutAnyGstWhenCustomerGstinIsMissing() {
+    void calculatesSimpleSaleWithoutAnyGstWhenShopGstinIsMissing() {
         PricingEngine engine = new PricingEngine(new PosProperties(false, false));
         var request = new PosRequests.QuoteRequest(
                 List.of(item("rice", "1", DiscountType.NONE, "0")),
                 DiscountType.NONE,
                 BigDecimal.ZERO,
-                TaxMode.INTER_STATE,
-                null);
+                TaxMode.INTER_STATE);
 
         var result = engine.calculate(request, List.of(
-                product("rice", ProductUnit.PIECE, "100", "18", "5")));
+                product("rice", ProductUnit.PIECE, "100", "18", "5")), false);
 
-        assertThat(result.customerGstin()).isNull();
+        assertThat(result.gstApplied()).isFalse();
         assertThat(result.taxableAmount()).isZero();
         assertThat(result.lines().getFirst().taxableAmount()).isZero();
         assertThat(result.cgstAmount()).isZero();
@@ -100,25 +99,25 @@ class PricingEngineTest {
         PricingEngine engine = new PricingEngine(new PosProperties(true, true));
         SaleProductSnapshot piece = product("rice", ProductUnit.PIECE, "10", "0", "1");
 
-        assertError(() -> engine.calculate(null, List.of()), "EMPTY_CART");
+        assertError(() -> engine.calculate(null, List.of(), true), "EMPTY_CART");
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "1", DiscountType.NONE, "0")), DiscountType.NONE, "0", TaxMode.INTRA_STATE),
-                List.of()), "INVALID_CART");
+                List.of(), true), "INVALID_CART");
         assertError(() -> engine.calculate(
                 quote(List.of(item("other", "1", DiscountType.NONE, "0")), DiscountType.NONE, "0", TaxMode.INTRA_STATE),
-                List.of(piece)), "INVALID_CART");
+                List.of(piece), true), "INVALID_CART");
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "2", DiscountType.NONE, "0")), DiscountType.NONE, "0", TaxMode.INTRA_STATE),
-                List.of(piece)), "INSUFFICIENT_STOCK");
+                List.of(piece), true), "INSUFFICIENT_STOCK");
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "0", DiscountType.NONE, "0")), DiscountType.NONE, "0", null),
-                List.of(piece)), "INVALID_QUANTITY");
+                List.of(piece), true), "INVALID_QUANTITY");
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "0.500", DiscountType.NONE, "0")), DiscountType.NONE, "0", TaxMode.INTRA_STATE),
-                List.of(piece)), "FRACTIONAL_QUANTITY_NOT_ALLOWED");
+                List.of(piece), true), "FRACTIONAL_QUANTITY_NOT_ALLOWED");
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "0.0001", DiscountType.NONE, "0")), DiscountType.NONE, "0", TaxMode.INTRA_STATE),
-                List.of(piece)), "INVALID_QUANTITY_PRECISION");
+                List.of(piece), true), "INVALID_QUANTITY_PRECISION");
     }
 
     @Test
@@ -134,7 +133,7 @@ class PricingEngineTest {
 
         var free = engine.calculate(
                 quote(List.of(item("rice", "1", DiscountType.NONE, null)), DiscountType.FIXED, "10", TaxMode.INTRA_STATE),
-                List.of(product));
+                List.of(product), true);
         assertThat(free.totalAmount()).isZero();
         assertThat(free.taxableAmount()).isZero();
     }
@@ -148,7 +147,7 @@ class PricingEngineTest {
             String billValue) {
         assertError(() -> engine.calculate(
                 quote(List.of(item("rice", "1", lineType, lineValue)), billType, billValue, TaxMode.INTRA_STATE),
-                List.of(product)), "INVALID_DISCOUNT");
+                List.of(product), true), "INVALID_DISCOUNT");
     }
 
     private PosRequests.QuoteRequest quote(
@@ -156,8 +155,7 @@ class PricingEngineTest {
             DiscountType billType,
             String billValue,
             TaxMode taxMode) {
-        return new PosRequests.QuoteRequest(
-                items, billType, decimal(billValue), taxMode, "27ABCDE1234F1Z5");
+        return new PosRequests.QuoteRequest(items, billType, decimal(billValue), taxMode);
     }
 
     private PosRequests.CartItemRequest item(
