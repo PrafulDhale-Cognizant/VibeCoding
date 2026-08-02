@@ -40,6 +40,7 @@ public final class PosResponses {
             List<QuoteLineResponse> lines,
             TaxMode taxMode,
             boolean pricesIncludeGst,
+            String customerGstin,
             BigDecimal subtotalAmount,
             BigDecimal lineDiscountAmount,
             BigDecimal billDiscountAmount,

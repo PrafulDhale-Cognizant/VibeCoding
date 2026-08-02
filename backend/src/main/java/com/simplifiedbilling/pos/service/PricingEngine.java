@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class PricingEngine {
@@ -39,6 +40,8 @@ public class PricingEngine {
             throw invalid("INVALID_CART", "Cart products could not be resolved.");
         }
         TaxMode taxMode = request.taxMode() == null ? TaxMode.INTRA_STATE : request.taxMode();
+        String customerGstin = normalizeGstin(request.customerGstin());
+        boolean applyGst = customerGstin != null;
 
         List<DraftLine> drafts = new ArrayList<>();
         BigDecimal subtotal = ZERO;
@@ -87,7 +90,10 @@ public class PricingEngine {
             BigDecimal discounted = draft.net().subtract(allocatedBillDiscount);
             BigDecimal taxable;
             BigDecimal tax;
-            if (properties.pricesIncludeGst()) {
+            if (!applyGst) {
+                taxable = discounted;
+                tax = ZERO;
+            } else if (properties.pricesIncludeGst()) {
                 taxable = money(discounted.multiply(ONE_HUNDRED)
                         .divide(ONE_HUNDRED.add(draft.product().gstRate()), 8, RoundingMode.HALF_UP));
                 tax = discounted.subtract(taxable);
@@ -104,7 +110,9 @@ public class PricingEngine {
                 cgst = money(tax.divide(TWO, 8, RoundingMode.HALF_UP));
                 sgst = tax.subtract(cgst);
             }
-            BigDecimal lineTotal = properties.pricesIncludeGst() ? discounted : taxable.add(tax);
+            BigDecimal lineTotal = !applyGst || properties.pricesIncludeGst()
+                    ? discounted
+                    : taxable.add(tax);
             lineTotal = money(lineTotal);
             lines.add(new PricingLine(
                     draft.lineNumber(), draft.product(), draft.quantity(), draft.gross(),
@@ -121,9 +129,13 @@ public class PricingEngine {
                 : money(unroundedTotal);
         BigDecimal roundOff = total.subtract(unroundedTotal);
         return new PricingResult(
-                List.copyOf(lines), taxMode, properties.pricesIncludeGst(), money(subtotal),
+                List.copyOf(lines), taxMode, properties.pricesIncludeGst(), customerGstin, money(subtotal),
                 money(totalLineDiscount), money(billDiscount), money(taxableTotal), money(cgstTotal),
                 money(sgstTotal), money(igstTotal), money(roundOff), money(total));
+    }
+
+    private String normalizeGstin(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private BigDecimal quantity(BigDecimal value, SaleProductSnapshot product) {

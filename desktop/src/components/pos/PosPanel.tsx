@@ -27,6 +27,7 @@ interface CartDraft {
   billDiscountType: DiscountType;
   billDiscountValue: number;
   taxMode: TaxMode;
+  customerGstin?: string;
 }
 
 interface HeldCart extends CartDraft { id: string; name: string; heldAt: string; }
@@ -34,6 +35,7 @@ interface HeldCart extends CartDraft { id: string; name: string; heldAt: string;
 const ACTIVE_DRAFT_KEY = "simplified-billing.pos.active-draft.v1";
 const HELD_CARTS_KEY = "simplified-billing.pos.held-carts.v1";
 const PRINT_QUEUE_KEY = "simplified-billing.pos.print-queue.v1";
+const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 function loadStored<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "") as T; }
@@ -79,10 +81,14 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   const [billDiscountType, setBillDiscountType] = useState<DiscountType>(recovered?.billDiscountType ?? "NONE");
   const [billDiscountValue, setBillDiscountValue] = useState(recovered?.billDiscountValue ?? 0);
   const [taxMode, setTaxMode] = useState<TaxMode>(recovered?.taxMode ?? "INTRA_STATE");
+  const [customerGstin, setCustomerGstin] = useState(recovered?.customerGstin ?? "");
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>(() => loadStored(HELD_CARTS_KEY, []));
   const [printQueue, setPrintQueue] = useState<PosInvoiceResponse[]>(() => loadStored(PRINT_QUEUE_KEY, []));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [invoice, setInvoice] = useState<PosInvoiceResponse | null>(null);
+  const normalizedCustomerGstin = customerGstin.trim().toUpperCase();
+  const hasCustomerGstin = GSTIN_PATTERN.test(normalizedCustomerGstin);
+  const customerGstinInvalid = normalizedCustomerGstin.length > 0 && !hasCustomerGstin;
 
   const quoteRequest = useMemo<PosQuoteRequest>(() => ({
     items: cart.map<PosCartItemRequest>((line) => ({
@@ -93,13 +99,14 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     })),
     billDiscountType,
     billDiscountValue,
-    taxMode
-  }), [cart, billDiscountType, billDiscountValue, taxMode]);
+    taxMode,
+    customerGstin: hasCustomerGstin ? normalizedCustomerGstin : ""
+  }), [cart, billDiscountType, billDiscountValue, taxMode, hasCustomerGstin, normalizedCustomerGstin]);
 
   useEffect(() => {
     if (cart.length === 0) localStorage.removeItem(ACTIVE_DRAFT_KEY);
-    else localStorage.setItem(ACTIVE_DRAFT_KEY, JSON.stringify({ cart, billDiscountType, billDiscountValue, taxMode }));
-  }, [cart, billDiscountType, billDiscountValue, taxMode]);
+    else localStorage.setItem(ACTIVE_DRAFT_KEY, JSON.stringify({ cart, billDiscountType, billDiscountValue, taxMode, customerGstin }));
+  }, [cart, billDiscountType, billDiscountValue, taxMode, customerGstin]);
 
   useEffect(() => {
     localStorage.setItem(HELD_CARTS_KEY, JSON.stringify(heldCarts));
@@ -176,11 +183,11 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         barcodeInput.current?.select();
       } else if (event.key === "F2") {
         event.preventDefault();
-        if (quote) setPaymentOpen(true);
+        if (quote && !customerGstinInvalid) setPaymentOpen(true);
       } else if (event.key === "F4") {
         event.preventDefault();
         if (invoice) void printReceipt(invoice);
-        else if (quote) setPaymentOpen(true);
+        else if (quote && !customerGstinInvalid) setPaymentOpen(true);
       } else if (event.key === "Escape" && !paymentOpen && !invoice && cart.length > 0) {
         const tag = (event.target as HTMLElement | null)?.tagName;
         if (tag !== "SELECT" && window.confirm("Clear the current cart?")) clearCart();
@@ -188,7 +195,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     }
     window.addEventListener("keydown", onShortcut);
     return () => window.removeEventListener("keydown", onShortcut);
-  }, [cart.length, invoice, paymentOpen, quote]);
+  }, [cart.length, customerGstinInvalid, invoice, paymentOpen, quote]);
 
   useEffect(() => {
     if (!paymentOpen && !invoice) barcodeInput.current?.focus();
@@ -265,6 +272,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     setError("");
     setBillDiscountType("NONE");
     setBillDiscountValue(0);
+    setCustomerGstin("");
   }
 
   function holdCart() {
@@ -273,7 +281,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     if (!name) return;
     setHeldCarts((current) => [...current, {
       id: crypto.randomUUID(), name, heldAt: new Date().toISOString(),
-      cart, billDiscountType, billDiscountValue, taxMode
+      cart, billDiscountType, billDiscountValue, taxMode, customerGstin
     }]);
     clearCart();
   }
@@ -282,6 +290,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     if (cart.length > 0 && !window.confirm("Replace the active cart with this held cart?")) return;
     setCart(held.cart); setBillDiscountType(held.billDiscountType);
     setBillDiscountValue(held.billDiscountValue); setTaxMode(held.taxMode);
+    setCustomerGstin(held.customerGstin ?? "");
     setHeldCarts((current) => current.filter((item) => item.id !== held.id));
     checkoutKey.current = null; setInvoice(null);
   }
@@ -422,12 +431,27 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold">Bill discount</h3>
-              <select value={taxMode} onChange={(event) => setTaxMode(event.target.value as TaxMode)} className="md-input md-select mt-0 min-h-0 w-auto rounded-lg py-1.5 text-xs font-semibold">
-                <option value="INTRA_STATE">CGST + SGST</option>
-                <option value="INTER_STATE">IGST</option>
-              </select>
+              <h3 className="font-bold">Bill options</h3>
+              {hasCustomerGstin && (
+                <select value={taxMode} onChange={(event) => { checkoutKey.current = null; setTaxMode(event.target.value as TaxMode); }} className="md-input md-select mt-0 min-h-0 w-auto rounded-lg py-1.5 text-xs font-semibold">
+                  <option value="INTRA_STATE">CGST + SGST</option>
+                  <option value="INTER_STATE">IGST</option>
+                </select>
+              )}
             </div>
+            <label className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-600" htmlFor="pos-customer-gstin">Customer GSTIN <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label>
+            <TextInput
+              id="pos-customer-gstin"
+              className="mt-1 uppercase"
+              value={customerGstin}
+              onChange={(event) => { checkoutKey.current = null; setCustomerGstin(event.target.value.toUpperCase().replace(/\s/g, "")); }}
+              placeholder="27ABCDE1234F1Z5"
+              maxLength={15}
+              aria-invalid={customerGstinInvalid}
+            />
+            <p className={`mt-1 text-xs ${customerGstinInvalid ? "font-semibold text-red-600" : hasCustomerGstin ? "font-semibold text-emerald-700" : "text-slate-500"}`}>
+              {customerGstinInvalid ? "Enter a valid 15-character GSTIN." : hasCustomerGstin ? "GST calculation enabled for this bill." : "GST will not be calculated without a GSTIN."}
+            </p>
             <div className="mt-3 grid grid-cols-[1fr_120px] gap-2">
               <SelectInput value={billDiscountType} onChange={(event) => { checkoutKey.current = null; setBillDiscountType(event.target.value as DiscountType); }}>
                 <option value="NONE">No discount</option>
@@ -444,10 +468,14 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
               <TotalRow label="Line discounts" value={quote ? -quote.lineDiscountAmount : undefined} muted />
               <TotalRow label="Bill discount" value={quote ? -quote.billDiscountAmount : undefined} muted />
               <div className="border-t border-slate-200 pt-3">
-                <TotalRow label="Taxable value" value={quote?.taxableAmount} />
-                {taxMode === "INTRA_STATE" ? (
-                  <><TotalRow label="CGST" value={quote?.cgstAmount} muted /><TotalRow label="SGST" value={quote?.sgstAmount} muted /></>
-                ) : <TotalRow label="IGST" value={quote?.igstAmount} muted />}
+                {quote?.customerGstin && (
+                  <>
+                    <TotalRow label="Taxable value" value={quote.taxableAmount} />
+                    {quote.taxMode === "INTRA_STATE" ? (
+                      <><TotalRow label="CGST" value={quote.cgstAmount} muted /><TotalRow label="SGST" value={quote.sgstAmount} muted /></>
+                    ) : <TotalRow label="IGST" value={quote.igstAmount} muted />}
+                  </>
+                )}
                 <TotalRow label="Round off" value={quote?.roundOffAmount} muted />
               </div>
             </div>
@@ -456,8 +484,8 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
                 <p className="text-sm font-bold uppercase tracking-wider text-slate-500">Payable</p>
                 <p className="text-4xl font-black tracking-tight">{quote ? money.format(quote.totalAmount) : money.format(0)}</p>
               </div>
-              <p className="mt-2 text-right text-xs text-slate-400">{quoting ? "Recalculating…" : quote?.pricesIncludeGst ? "Prices include GST" : "GST added to prices"}</p>
-              <button type="button" disabled={!quote || quoting || quote.totalAmount <= 0} onClick={() => setPaymentOpen(true)} className="mt-5 w-full rounded-xl bg-emerald-500 px-5 py-4 text-lg font-black tracking-wide text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">CHECKOUT · F2</button>
+              <p className="mt-2 text-right text-xs text-slate-400">{quoting ? "Recalculating…" : !quote?.customerGstin ? "Simple bill · GST not applied" : quote.pricesIncludeGst ? "Prices include GST" : "GST added to prices"}</p>
+              <button type="button" disabled={!quote || quoting || customerGstinInvalid || quote.totalAmount <= 0} onClick={() => setPaymentOpen(true)} className="mt-5 w-full rounded-xl bg-emerald-500 px-5 py-4 text-lg font-black tracking-wide text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">CHECKOUT · F2</button>
             </div>
           </section>
         </aside>
@@ -657,12 +685,13 @@ function ThermalReceipt({ invoice, logoUrl }: { invoice: PosInvoiceResponse; log
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
   const compact = width === 58;
   const customer = invoice.payments.find((payment) => payment.customerId);
+  const gstApplied = Boolean(invoice.totals.customerGstin);
   return (
     <article className="thermal-receipt bg-white font-mono text-black" style={{ width: `${width}mm`, padding: compact ? "3mm" : "4mm", fontSize: compact ? "8pt" : "9pt", lineHeight: 1.35 }}>
       <header className="text-center">{logoUrl && <img src={logoUrl} alt="" className="mx-auto mb-1 object-contain grayscale" style={{ maxWidth: compact ? "32mm" : "42mm", maxHeight: compact ? "11mm" : "15mm", filter: "grayscale(1) contrast(1.2)" }} />}<h1 className="font-sans text-base font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}</p>{invoice.store.gstin && <p>GSTIN: {invoice.store.gstin}</p>}</header>
-      <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span><span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local" : "Interstate"}</span></div>{customer && <div className="mt-1"><span>Customer: {customer.customerName}</span>{customer.customerPhone && <span> · {customer.customerPhone}</span>}</div>}</div>
+      <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>{gstApplied && <span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local GST" : "Interstate GST"}</span>}</div>{customer && <div className="mt-1"><span>Customer: {customer.customerName}</span>{customer.customerPhone && <span> · {customer.customerPhone}</span>}</div>}{invoice.totals.customerGstin && <div>Customer GSTIN: {invoice.totals.customerGstin}</div>}</div>
       <table className="w-full table-fixed"><thead><tr className="border-b border-black"><th className="w-[48%] text-left">Item</th><th className="w-[14%] text-right">Qty</th><th className="w-[18%] text-right">Rate</th><th className="w-[20%] text-right">Amt</th></tr></thead><tbody>{invoice.totals.lines.map((line) => <tr key={line.lineNumber} className="align-top"><td className="pr-1">{line.receiptName}</td><td className="text-right">{line.quantity}</td><td className="text-right">{line.unitPrice.toFixed(2)}</td><td className="text-right">{line.lineTotal.toFixed(2)}</td></tr>)}</tbody></table>
-      <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}<ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.customerName ? `${payment.mode} · ${payment.customerName}` : payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
+      <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}{gstApplied && <><ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}</>}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.customerName ? `${payment.mode} · ${payment.customerName}` : payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
       <footer className="mt-3 text-center"><p className="font-bold">Thank you. Visit again!</p><p className="mt-1 text-[0.85em]">Computer-generated invoice</p></footer>
     </article>
   );

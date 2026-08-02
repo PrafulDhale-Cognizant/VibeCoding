@@ -231,6 +231,7 @@ class DefaultPosServiceTest {
         PosRequests.QuoteRequest quote = quoteRequest();
         return new PosRequests.CheckoutRequest(
                 quote.items(), quote.billDiscountType(), quote.billDiscountValue(), quote.taxMode(),
+                quote.customerGstin(),
                 payments, " Counter sale ");
     }
 
@@ -240,7 +241,8 @@ class DefaultPosServiceTest {
                         "product-1", BigDecimal.ONE, DiscountType.NONE, BigDecimal.ZERO)),
                 DiscountType.NONE,
                 BigDecimal.ZERO,
-                TaxMode.INTRA_STATE);
+                TaxMode.INTRA_STATE,
+                "27ABCDE1234F1Z5");
     }
 
     private PosRequests.PaymentRequest payment(
@@ -271,7 +273,7 @@ class DefaultPosServiceTest {
                 new BigDecimal("95.24"), new BigDecimal("2.38"), new BigDecimal("2.38"),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));
         return new PricingResult(
-                List.of(line), TaxMode.INTRA_STATE, true, new BigDecimal("100.00"),
+                List.of(line), TaxMode.INTRA_STATE, true, "27ABCDE1234F1Z5", new BigDecimal("100.00"),
                 BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2), new BigDecimal("95.24"),
                 new BigDecimal("2.38"), new BigDecimal("2.38"), BigDecimal.ZERO.setScale(2),
                 BigDecimal.ZERO.setScale(2), new BigDecimal("100.00"));

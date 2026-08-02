@@ -7,6 +7,7 @@ public record PricingResult(
         List<PricingLine> lines,
         TaxMode taxMode,
         boolean pricesIncludeGst,
+        String customerGstin,
         BigDecimal subtotalAmount,
         BigDecimal lineDiscountAmount,
         BigDecimal billDiscountAmount,

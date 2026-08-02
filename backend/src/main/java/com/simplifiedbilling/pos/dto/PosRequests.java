@@ -8,6 +8,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -29,7 +30,11 @@ public final class PosRequests {
             @NotEmpty @Valid List<CartItemRequest> items,
             DiscountType billDiscountType,
             @DecimalMin("0.00") BigDecimal billDiscountValue,
-            @NotNull TaxMode taxMode) {
+            @NotNull TaxMode taxMode,
+            @Size(max = 15) @Pattern(
+                    regexp = "^$|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]",
+                    message = "Enter a valid customer GSTIN in uppercase.")
+            String customerGstin) {
     }
 
     public record PaymentRequest(
@@ -45,11 +50,15 @@ public final class PosRequests {
             DiscountType billDiscountType,
             @DecimalMin("0.00") BigDecimal billDiscountValue,
             @NotNull TaxMode taxMode,
+            @Size(max = 15) @Pattern(
+                    regexp = "^$|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]",
+                    message = "Enter a valid customer GSTIN in uppercase.")
+            String customerGstin,
             @NotEmpty @Valid List<PaymentRequest> payments,
             @Size(max = 500) String notes) {
 
         public QuoteRequest quoteRequest() {
-            return new QuoteRequest(items, billDiscountType, billDiscountValue, taxMode);
+            return new QuoteRequest(items, billDiscountType, billDiscountValue, taxMode, customerGstin);
         }
     }
 }

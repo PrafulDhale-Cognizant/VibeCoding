@@ -53,6 +53,9 @@ public class Invoice implements Persistable<String> {
     @Column(name = "prices_include_gst", nullable = false)
     private boolean pricesIncludeGst;
 
+    @Column(name = "customer_gstin", length = 15)
+    private String customerGstin;
+
     @Column(name = "subtotal_amount", precision = 19, scale = 2, nullable = false)
     private BigDecimal subtotalAmount;
 
@@ -118,6 +121,7 @@ public class Invoice implements Persistable<String> {
         invoice.cashierUserId = cashierUserId;
         invoice.taxMode = pricing.taxMode();
         invoice.pricesIncludeGst = pricing.pricesIncludeGst();
+        invoice.customerGstin = pricing.customerGstin();
         invoice.subtotalAmount = pricing.subtotalAmount();
         invoice.lineDiscountAmount = pricing.lineDiscountAmount();
         invoice.billDiscountAmount = pricing.billDiscountAmount();
@@ -157,6 +161,7 @@ public class Invoice implements Persistable<String> {
     public String getCashierUserId() { return cashierUserId; }
     public TaxMode getTaxMode() { return taxMode; }
     public boolean isPricesIncludeGst() { return pricesIncludeGst; }
+    public String getCustomerGstin() { return customerGstin; }
     public BigDecimal getSubtotalAmount() { return subtotalAmount; }
     public BigDecimal getLineDiscountAmount() { return lineDiscountAmount; }
     public BigDecimal getBillDiscountAmount() { return billDiscountAmount; }

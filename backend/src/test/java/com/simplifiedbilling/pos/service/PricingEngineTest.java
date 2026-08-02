@@ -71,6 +71,30 @@ class PricingEngineTest {
     }
 
     @Test
+    void calculatesSimpleSaleWithoutAnyGstWhenCustomerGstinIsMissing() {
+        PricingEngine engine = new PricingEngine(new PosProperties(false, false));
+        var request = new PosRequests.QuoteRequest(
+                List.of(item("rice", "1", DiscountType.NONE, "0")),
+                DiscountType.NONE,
+                BigDecimal.ZERO,
+                TaxMode.INTER_STATE,
+                null);
+
+        var result = engine.calculate(request, List.of(
+                product("rice", ProductUnit.PIECE, "100", "18", "5")));
+
+        assertThat(result.customerGstin()).isNull();
+        assertThat(result.taxableAmount()).isEqualByComparingTo("100.00");
+        assertThat(result.cgstAmount()).isZero();
+        assertThat(result.sgstAmount()).isZero();
+        assertThat(result.igstAmount()).isZero();
+        assertThat(result.lines().getFirst().cgstAmount()).isZero();
+        assertThat(result.lines().getFirst().sgstAmount()).isZero();
+        assertThat(result.lines().getFirst().igstAmount()).isZero();
+        assertThat(result.totalAmount()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
     void validatesCartShapeQuantityStockAndProductOrder() {
         PricingEngine engine = new PricingEngine(new PosProperties(true, true));
         SaleProductSnapshot piece = product("rice", ProductUnit.PIECE, "10", "0", "1");
@@ -131,7 +155,8 @@ class PricingEngineTest {
             DiscountType billType,
             String billValue,
             TaxMode taxMode) {
-        return new PosRequests.QuoteRequest(items, billType, decimal(billValue), taxMode);
+        return new PosRequests.QuoteRequest(
+                items, billType, decimal(billValue), taxMode, "27ABCDE1234F1Z5");
     }
 
     private PosRequests.CartItemRequest item(
