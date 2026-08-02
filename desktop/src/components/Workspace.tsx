@@ -92,7 +92,7 @@ export function Workspace({
     { id: "khata", label: "Khata", visible: canUsePos, icon: "khata" },
     { id: "inventory", label: "Inventory", visible: canReadInventory, icon: "inventory" },
     { id: "purchases", label: "Purchases & suppliers", visible: canUsePurchasing, icon: "purchases" },
-    { id: "reports", label: "Dashboard & reports", visible: canViewReports, icon: "reports" },
+    { id: "reports", label: "Reports & invoices", visible: canViewReports, icon: "reports" },
     { id: "operations", label: "Backup & diagnostics", visible: canAdminister, icon: "system" },
     { id: "store", label: "Shop settings", visible: true, icon: "store" },
     { id: "users", label: "Users & roles", visible: canAdminister, icon: "users" },
@@ -175,7 +175,7 @@ export function Workspace({
                   : section === "purchases"
                     ? "Stock receiving & supplier payables"
                     : section === "reports"
-                      ? "Sales, margin & operational insights"
+                      ? "Sales insights, invoice lookup & reprints"
                     : section === "operations"
                       ? "Backup, recovery & local health"
                     : "Store setup & authentication"}

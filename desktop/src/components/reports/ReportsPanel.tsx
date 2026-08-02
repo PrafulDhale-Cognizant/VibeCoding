@@ -4,11 +4,14 @@ import type {
   DashboardReportResponse,
   InvoiceSummaryResponse,
   PaymentMode,
+  PosInvoiceResponse,
   ReportStockAlertResponse,
   SalesReportResponse,
   SalesSummaryResponse
 } from "../../types";
+import { useStoreLogo } from "../../hooks/useStoreLogo";
 import { ErrorNotice, Field, TextInput } from "../FormControls";
+import { ReceiptPrintSurface, ThermalReceipt } from "../pos/PosPanel";
 
 const money = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -44,6 +47,7 @@ function messageFrom(caught: unknown, fallback: string) {
 
 export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: string; canViewInvoices: boolean }) {
   const initial = useMemo(initialRange, []);
+  const logoUrl = useStoreLogo(accessToken);
   const [dashboard, setDashboard] = useState<DashboardReportResponse | null>(null);
   const [sales, setSales] = useState<SalesReportResponse | null>(null);
   const [from, setFrom] = useState(initial.from);
@@ -57,6 +61,9 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
   const [invoices, setInvoices] = useState<InvoiceSummaryResponse[]>([]);
   const [invoiceTotal, setInvoiceTotal] = useState(0);
   const [invoicePages, setInvoicePages] = useState(0);
+  const [selectedInvoice, setSelectedInvoice] = useState<PosInvoiceResponse | null>(null);
+  const [invoiceLoadingId, setInvoiceLoadingId] = useState<string | null>(null);
+  const [invoicePrinting, setInvoicePrinting] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     const response = await api.getDashboardReport(accessToken);
@@ -130,6 +137,39 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
     }
   }
 
+  async function openInvoice(invoiceId: string) {
+    setInvoiceLoadingId(invoiceId);
+    setError("");
+    try {
+      setSelectedInvoice(await api.getInvoice(accessToken, invoiceId));
+    } catch (caught) {
+      setError(messageFrom(caught, "The invoice could not be opened."));
+    } finally {
+      setInvoiceLoadingId(null);
+    }
+  }
+
+  async function reprintInvoice() {
+    if (!selectedInvoice) return;
+    setInvoicePrinting(true);
+    setError("");
+    try {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      const widthMm = selectedInvoice.store.receiptWidth === "MM_58" ? 58 : 80;
+      if (window.billingDesktop?.printReceipt) {
+        await window.billingDesktop.printReceipt({ widthMm });
+      } else {
+        window.print();
+      }
+    } catch (caught) {
+      setError(messageFrom(caught, "The invoice could not be reprinted."));
+    } finally {
+      setInvoicePrinting(false);
+    }
+  }
+
   function exportCsv() {
     if (!sales) return;
     const summary = sales.summary;
@@ -183,14 +223,17 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
           </p>
           <h3 className="mt-1 text-2xl font-bold">Today at a glance</h3>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshDashboard()}
-          disabled={loading}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          {loading ? "Refreshing…" : "Refresh dashboard"}
-        </button>
+        <div className="flex gap-3">
+          {canViewInvoices && <a href="#invoice-archive" className="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-800">Find / reprint invoice</a>}
+          <button
+            type="button"
+            onClick={() => void refreshDashboard()}
+            disabled={loading}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? "Refreshing…" : "Refresh dashboard"}
+          </button>
+        </div>
       </div>
 
       {dashboard && (
@@ -272,21 +315,61 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
         {sales ? <SalesReportBody report={sales} /> : <p className="p-6 text-sm text-slate-500">Run a date-range report to view sales.</p>}
       </section>
 
-      {canViewInvoices && <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {canViewInvoices && <section id="invoice-archive" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 p-5">
           <div><h4 className="font-bold">All invoices</h4><p className="text-xs text-slate-500">{invoiceTotal} invoices · searchable by invoice number, customer, or phone</p></div>
           <TextInput className="mt-0 max-w-sm" value={invoiceQuery} onChange={(event) => { setInvoiceQuery(event.target.value); setInvoicePage(0); }} placeholder="Search invoices" />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Invoice</th><th>Customer</th><th>Status</th><th>Date</th><th className="px-5 text-right">Total</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{invoices.map((invoice) => <tr key={invoice.id}><td className="px-5 py-3 font-bold">{invoice.invoiceNumber}</td><td><p className="font-semibold">{invoice.customerName ?? "Walk-in"}</p><p className="text-xs text-slate-500">{invoice.customerPhone}</p></td><td>{invoice.status.replaceAll("_", " ")}</td><td>{new Date(invoice.completedAt).toLocaleString("en-IN")}</td><td className="px-5 text-right font-bold">{money.format(invoice.totalAmount)}</td></tr>)}</tbody>
+          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Invoice</th><th>Customer</th><th>Status</th><th>Date</th><th className="text-right">Total</th><th className="px-5 text-right">Actions</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{invoices.map((invoice) => <tr key={invoice.id} className="hover:bg-slate-50"><td className="px-5 py-3"><button type="button" onClick={() => void openInvoice(invoice.id)} className="font-bold text-indigo-700 hover:underline">{invoice.invoiceNumber}</button></td><td><p className="font-semibold">{invoice.customerName ?? "Walk-in"}</p><p className="text-xs text-slate-500">{invoice.customerPhone}</p></td><td>{invoice.status.replaceAll("_", " ")}</td><td>{new Date(invoice.completedAt).toLocaleString("en-IN")}</td><td className="text-right font-bold">{money.format(invoice.totalAmount)}</td><td className="px-5 text-right"><button type="button" disabled={invoiceLoadingId !== null} onClick={() => void openInvoice(invoice.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">{invoiceLoadingId === invoice.id ? "Opening…" : "View / Reprint"}</button></td></tr>)}</tbody>
           </table>
           {invoices.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No invoices found.</p>}
         </div>
         <div className="flex items-center justify-between border-t border-slate-200 p-4 text-sm"><span>Page {invoicePages === 0 ? 0 : invoicePage + 1} of {invoicePages}</span><div className="flex gap-2"><button type="button" disabled={invoicePage === 0} onClick={() => setInvoicePage((page) => page - 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={invoicePage + 1 >= invoicePages} onClick={() => setInvoicePage((page) => page + 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Next</button></div></div>
       </section>}
 
-      {sales && <PrintableReport report={sales} />}
+      {selectedInvoice && (
+        <InvoiceViewer
+          invoice={selectedInvoice}
+          logoUrl={logoUrl}
+          printing={invoicePrinting}
+          onClose={() => setSelectedInvoice(null)}
+          onPrint={reprintInvoice}
+        />
+      )}
+      {selectedInvoice && <ReceiptPrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
+      {sales && !selectedInvoice && <PrintableReport report={sales} />}
+    </div>
+  );
+}
+
+function InvoiceViewer({
+  invoice,
+  logoUrl,
+  printing,
+  onClose,
+  onPrint
+}: {
+  invoice: PosInvoiceResponse;
+  logoUrl: string | null;
+  printing: boolean;
+  onClose: () => void;
+  onPrint: () => Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label={`Invoice ${invoice.invoiceNumber}`}>
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-5">
+          <div><p className="text-sm font-bold text-indigo-700">Saved invoice</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div>
+          <button type="button" onClick={onClose} disabled={printing} aria-label="Close invoice" className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100 disabled:opacity-50">X</button>
+        </div>
+        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate /></div></div>
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 p-5">
+          <p className="text-xs text-slate-500">Reprints are marked as a duplicate copy.</p>
+          <div className="flex gap-3"><button type="button" onClick={onClose} disabled={printing} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold disabled:opacity-50">Close</button><button type="button" onClick={() => void onPrint()} disabled={printing} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white hover:bg-indigo-800 disabled:opacity-50">{printing ? "Opening print…" : "Reprint receipt"}</button></div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -654,19 +654,35 @@ function ReceiptModal({ invoice, logoUrl, onClose, onPrint }: { invoice: PosInvo
   );
 }
 
-function ReceiptPrintSurface({ invoice, logoUrl }: { invoice: PosInvoiceResponse; logoUrl: string | null }) {
+export function ReceiptPrintSurface({
+  invoice,
+  logoUrl,
+  duplicate = false
+}: {
+  invoice: PosInvoiceResponse;
+  logoUrl: string | null;
+  duplicate?: boolean;
+}) {
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
-  return <><style>{`@media print { @page { size: ${width}mm 297mm; margin: 0; } }`}</style><div className="receipt-print-surface" aria-hidden="true"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} /></div></>;
+  return <><style>{`@media print { @page { size: ${width}mm 297mm; margin: 0; } }`}</style><div className="receipt-print-surface" aria-hidden="true"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div></>;
 }
 
-function ThermalReceipt({ invoice, logoUrl }: { invoice: PosInvoiceResponse; logoUrl: string | null }) {
+export function ThermalReceipt({
+  invoice,
+  logoUrl,
+  duplicate = false
+}: {
+  invoice: PosInvoiceResponse;
+  logoUrl: string | null;
+  duplicate?: boolean;
+}) {
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
   const compact = width === 58;
   const customer = invoice.payments.find((payment) => payment.customerId);
   const gstApplied = invoice.totals.gstApplied;
   return (
     <article className="thermal-receipt bg-white font-mono text-black" style={{ width: `${width}mm`, padding: compact ? "3mm" : "4mm", fontSize: compact ? "8pt" : "9pt", lineHeight: 1.35 }}>
-      <header className="text-center">{logoUrl && <img src={logoUrl} alt="" className="mx-auto mb-1 object-contain grayscale" style={{ maxWidth: compact ? "32mm" : "42mm", maxHeight: compact ? "11mm" : "15mm", filter: "grayscale(1) contrast(1.2)" }} />}<h1 className="font-sans text-base font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}</p>{invoice.store.gstin && <p>GSTIN: {invoice.store.gstin}</p>}</header>
+      <header className="text-center">{logoUrl && <img src={logoUrl} alt="" className="mx-auto mb-1 object-contain grayscale" style={{ maxWidth: compact ? "32mm" : "42mm", maxHeight: compact ? "11mm" : "15mm", filter: "grayscale(1) contrast(1.2)" }} />}<h1 className="font-sans text-base font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}</p>{invoice.store.gstin && <p>GSTIN: {invoice.store.gstin}</p>}{duplicate && <p className="mt-1 border-y border-black py-0.5 font-sans text-xs font-black tracking-widest">DUPLICATE COPY</p>}</header>
       <div className="my-2 border-y border-dashed border-black py-1"><div className="flex justify-between"><span>Bill: {invoice.invoiceNumber}</span><span>{new Date(invoice.completedAt).toLocaleDateString("en-IN")}</span></div><div className="flex justify-between"><span>{new Date(invoice.completedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>{gstApplied && <span>{invoice.totals.taxMode === "INTRA_STATE" ? "Local GST" : "Interstate GST"}</span>}</div>{customer && <div className="mt-1"><span>Customer: {customer.customerName}</span>{customer.customerPhone && <span> · {customer.customerPhone}</span>}</div>}</div>
       <table className="w-full table-fixed"><thead><tr className="border-b border-black"><th className="w-[48%] text-left">Item</th><th className="w-[14%] text-right">Qty</th><th className="w-[18%] text-right">Rate</th><th className="w-[20%] text-right">Amt</th></tr></thead><tbody>{invoice.totals.lines.map((line) => <tr key={line.lineNumber} className="align-top"><td className="pr-1">{line.receiptName}</td><td className="text-right">{line.quantity}</td><td className="text-right">{line.unitPrice.toFixed(2)}</td><td className="text-right">{line.lineTotal.toFixed(2)}</td></tr>)}</tbody></table>
       <div className="mt-2 border-t border-dashed border-black pt-1"><ReceiptRow label="Subtotal" value={invoice.totals.subtotalAmount} />{invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount > 0 && <ReceiptRow label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />}{gstApplied && <><ReceiptRow label="Taxable" value={invoice.totals.taxableAmount} />{invoice.totals.taxMode === "INTRA_STATE" ? <><ReceiptRow label="CGST" value={invoice.totals.cgstAmount} /><ReceiptRow label="SGST" value={invoice.totals.sgstAmount} /></> : <ReceiptRow label="IGST" value={invoice.totals.igstAmount} />}</>}<ReceiptRow label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-1 flex justify-between border-y border-black py-1 text-lg font-black"><span>TOTAL</span><span>₹{invoice.totals.totalAmount.toFixed(2)}</span></div>{invoice.payments.map((payment, index) => <div key={index}><ReceiptRow label={payment.customerName ? `${payment.mode} · ${payment.customerName}` : payment.mode} value={payment.amount} />{payment.changeAmount > 0 && <ReceiptRow label="Change" value={payment.changeAmount} />}</div>)}</div>
