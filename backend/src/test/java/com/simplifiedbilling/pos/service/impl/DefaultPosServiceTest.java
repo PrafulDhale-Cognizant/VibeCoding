@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -146,6 +147,32 @@ class DefaultPosServiceTest {
     }
 
     @Test
+    void attachesCustomerSnapshotToNonCreditPayment() {
+        prepareNewCheckout();
+        StoreDetails store = store();
+        PosResponses.InvoiceResponse response = org.mockito.Mockito.mock(PosResponses.InvoiceResponse.class);
+        when(creditAccountService.getCreditCustomer("customer-1")).thenReturn(
+                new CreditCustomerSnapshot("customer-1", "Ravi", "9876543210", BigDecimal.ZERO));
+        when(storeService.getStore()).thenReturn(store);
+        when(numberAllocator.next("INV")).thenReturn("INV-000003");
+        when(mapper.toInvoice(any(Invoice.class), eq(store), eq(false))).thenReturn(response);
+
+        var request = checkoutRequest(List.of(new PosRequests.PaymentRequest(
+                PaymentMode.UPI, new BigDecimal("100.00"), null, " upi-2 ", " customer-1 ")));
+
+        assertThat(service.checkout("actor", KEY, request)).isSameAs(response);
+        ArgumentCaptor<Invoice> invoice = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).saveAndFlush(invoice.capture());
+        var payment = invoice.getValue().getPayments().getFirst();
+        assertThat(payment.getMode()).isEqualTo(PaymentMode.UPI);
+        assertThat(payment.getReference()).isEqualTo("upi-2");
+        assertThat(payment.getCustomerId()).isEqualTo("customer-1");
+        assertThat(payment.getCustomerName()).isEqualTo("Ravi");
+        assertThat(payment.getCustomerPhone()).isEqualTo("9876543210");
+        verify(creditAccountService, never()).postCreditSale(any(), any(), any(), any());
+    }
+
+    @Test
     void validatesIdempotencyAndPaymentRules() {
         assertError(() -> service.checkout("actor", "bad key", checkoutRequest(List.of(
                 payment(PaymentMode.CASH, "100", "100", null)))), "INVALID_IDEMPOTENCY_KEY");
@@ -168,10 +195,6 @@ class DefaultPosServiceTest {
                 new PosRequests.PaymentRequest(
                         PaymentMode.UDHAAR, new BigDecimal("100"), null, null, null)))),
                 "CREDIT_CUSTOMER_REQUIRED");
-        assertError(() -> service.checkout("actor", KEY, checkoutRequest(List.of(
-                new PosRequests.PaymentRequest(
-                        PaymentMode.UPI, new BigDecimal("100"), null, null, "customer-1")))),
-                "INVALID_PAYMENT_CUSTOMER");
 
         when(creditAccountService.getCreditCustomer("customer-1")).thenReturn(
                 new CreditCustomerSnapshot("customer-1", "Ravi", "9876543210", BigDecimal.ZERO));
