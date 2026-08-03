@@ -4,7 +4,11 @@ import com.simplifiedbilling.pos.domain.Invoice;
 import com.simplifiedbilling.pos.domain.InvoiceStatus;
 import com.simplifiedbilling.pos.domain.Payment;
 import com.simplifiedbilling.pos.repository.InvoiceRepository;
+import com.simplifiedbilling.pos.repository.InvoiceActivityStore;
 import com.simplifiedbilling.pos.repository.SaleReturnRepository;
+import com.simplifiedbilling.pos.service.InvoiceOutputType;
+import com.simplifiedbilling.pos.service.InvoiceSearchCriteria;
+import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,11 +23,13 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,11 +39,13 @@ class DefaultInvoiceQueryServiceTest {
 
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private SaleReturnRepository returnRepository;
+    @Mock private InvoiceActivityStore activityStore;
+    @Mock private AuditWriter auditWriter;
     private DefaultInvoiceQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new DefaultInvoiceQueryService(invoiceRepository, returnRepository);
+        service = new DefaultInvoiceQueryService(invoiceRepository, returnRepository, activityStore, auditWriter);
     }
 
     @Test
@@ -50,7 +58,7 @@ class DefaultInvoiceQueryServiceTest {
     @Test
     void treatsNullQueryAsEmpty() {
         Pageable pageable = PageRequest.of(0, 10);
-        when(invoiceRepository.searchInvoices(eq(""), any(Pageable.class)))
+        when(invoiceRepository.searchInvoices(eq(""), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         var result = service.search(null, 0, 10);
@@ -68,7 +76,7 @@ class DefaultInvoiceQueryServiceTest {
         Invoice counterInvoice = invoice(
                 "invoice-2", "INV-0002", new BigDecimal("50.00"), List.of());
         Pageable pageable = PageRequest.of(1, 20);
-        when(invoiceRepository.searchInvoices(eq("ravi"), any(Pageable.class)))
+        when(invoiceRepository.searchInvoices(eq("ravi"), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(customerInvoice, counterInvoice), pageable, 42));
         when(returnRepository.returnedTotal("invoice-1")).thenReturn(new BigDecimal("15.00"));
         when(returnRepository.returnedTotal("invoice-2")).thenReturn(BigDecimal.ZERO);
@@ -90,10 +98,71 @@ class DefaultInvoiceQueryServiceTest {
         assertThat(result.content().get(1).customerPhone()).isNull();
 
         ArgumentCaptor<Pageable> request = ArgumentCaptor.forClass(Pageable.class);
-        verify(invoiceRepository).searchInvoices(eq("ravi"), request.capture());
+        verify(invoiceRepository).searchInvoices(eq("ravi"), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), request.capture());
         assertThat(request.getValue().getPageNumber()).isEqualTo(1);
         assertThat(request.getValue().getPageSize()).isEqualTo(20);
         assertThat(request.getValue().getSort().getOrderFor("completedAt").isDescending()).isTrue();
+    }
+
+    @Test
+    void appliesAdvancedFiltersAndAmountSort() {
+        Pageable pageable = PageRequest.of(0, 25);
+        Instant from = Instant.parse("2026-08-01T00:00:00Z");
+        Instant to = Instant.parse("2026-08-03T00:00:00Z");
+        when(invoiceRepository.searchInvoices(
+                eq("inv"), eq(InvoiceStatus.COMPLETED), eq(com.simplifiedbilling.pos.domain.PaymentMode.CARD),
+                eq(from), eq(to), eq(new BigDecimal("10")), eq(new BigDecimal("500")), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        service.search(new InvoiceSearchCriteria(
+                " INV ", InvoiceStatus.COMPLETED, com.simplifiedbilling.pos.domain.PaymentMode.CARD,
+                from, to, new BigDecimal("10"), new BigDecimal("500"), "AMOUNT_HIGH", 0, 25));
+
+        ArgumentCaptor<Pageable> request = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceRepository).searchInvoices(
+                eq("inv"), eq(InvoiceStatus.COMPLETED), eq(com.simplifiedbilling.pos.domain.PaymentMode.CARD),
+                eq(from), eq(to), eq(new BigDecimal("10")), eq(new BigDecimal("500")), request.capture());
+        assertThat(request.getValue().getSort().getOrderFor("totalAmount").isDescending()).isTrue();
+    }
+
+    @Test
+    void validatesAdvancedFiltersAndSort() {
+        assertThatThrownBy(() -> service.search(new InvoiceSearchCriteria(
+                "", null, null, Instant.parse("2026-08-03T00:00:00Z"),
+                Instant.parse("2026-08-01T00:00:00Z"), null, null, "NEWEST", 0, 20)))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("INVALID_DATE_RANGE"));
+        assertThatThrownBy(() -> service.search(new InvoiceSearchCriteria(
+                "", null, null, null, null, new BigDecimal("20"), new BigDecimal("10"), "NEWEST", 0, 20)))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("INVALID_AMOUNT_RANGE"));
+        assertThatThrownBy(() -> service.search(new InvoiceSearchCriteria(
+                "", null, null, null, null, null, null, "UNKNOWN", 0, 20)))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("INVALID_INVOICE_SORT"));
+    }
+
+    @Test
+    void recordsAndReturnsInvoiceActivity() {
+        Invoice source = invoice("invoice-1", "INV-0001", new BigDecimal("100.00"), List.of());
+        when(invoiceRepository.findById("invoice-1")).thenReturn(java.util.Optional.of(source));
+        var activity = new com.simplifiedbilling.pos.dto.InvoiceQueryResponses.InvoiceActivity(
+                "SALE_COMPLETED", "Owner", Instant.parse("2026-08-01T10:00:00Z"));
+        when(activityStore.findByInvoiceId("invoice-1")).thenReturn(List.of(activity));
+
+        service.recordOutput("user-1", "invoice-1", InvoiceOutputType.THERMAL_REPRINT);
+        assertThat(service.activity("invoice-1")).containsExactly(activity);
+
+        verify(auditWriter).write("user-1", "INVOICE_THERMAL_REPRINTED", "INVOICE", "invoice-1",
+                Map.of("invoiceNumber", "INV-0001"));
+    }
+
+    @Test
+    void rejectsOutputForMissingInvoice() {
+        when(invoiceRepository.findById("missing")).thenReturn(java.util.Optional.empty());
+        assertThatThrownBy(() -> service.recordOutput("user-1", "missing", InvoiceOutputType.PDF_EXPORT))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("INVOICE_NOT_FOUND"));
     }
 
     private Invoice invoice(String id, String number, BigDecimal total, List<Payment> payments) {
