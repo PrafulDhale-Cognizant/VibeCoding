@@ -18,6 +18,7 @@ public record ShopProfileData(
         String invoicePrefix,
         int financialYearStartMonth,
         ReceiptWidth receiptWidth,
+        InvoicePrintFormat invoicePrintFormat,
         A4InvoiceTemplate a4InvoiceTemplate,
         ThermalReceiptTemplate thermalReceiptTemplate) {
 }

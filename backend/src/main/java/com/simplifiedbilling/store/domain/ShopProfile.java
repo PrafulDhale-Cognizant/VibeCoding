@@ -77,6 +77,11 @@ public class ShopProfile {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "invoice_print_format", length = 16, nullable = false)
+    private InvoicePrintFormat invoicePrintFormat;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "a4_invoice_template", length = 16, nullable = false)
     private A4InvoiceTemplate a4InvoiceTemplate;
 
@@ -144,6 +149,7 @@ public class ShopProfile {
         invoicePrefix = data.invoicePrefix();
         financialYearStartMonth = (byte) data.financialYearStartMonth();
         receiptWidth = data.receiptWidth();
+        invoicePrintFormat = data.invoicePrintFormat();
         a4InvoiceTemplate = data.a4InvoiceTemplate();
         thermalReceiptTemplate = data.thermalReceiptTemplate();
     }
@@ -240,6 +246,10 @@ public class ShopProfile {
 
     public ReceiptWidth getReceiptWidth() {
         return receiptWidth;
+    }
+
+    public InvoicePrintFormat getInvoicePrintFormat() {
+        return invoicePrintFormat;
     }
 
     public A4InvoiceTemplate getA4InvoiceTemplate() {

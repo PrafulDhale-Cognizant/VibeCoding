@@ -9,11 +9,12 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 
 - Java 21 and Spring Boot 3.5 modular-monolith backend
 - MySQL persistence with Flyway migrations
-- first-run shop/GST/receipt configuration, selectable invoice templates and owner bootstrap
+- first-run shop/GST/receipt configuration, selectable A4/thermal default printing, invoice templates and owner bootstrap
 - Spring Security JWT access tokens and rotating, hashed refresh tokens
 - BCrypt password hashing, login throttling, roles, and local user administration
 - shop settings and receipt-logo management with optimistic concurrency
 - consistent API errors and request correlation IDs
+- structured SLF4J lifecycle and billing logs with rolling file retention
 - category, product, barcode, inventory-balance and immutable stock-ledger services
 - paged product search, low-stock alerts and locked stock adjustments
 - server-authoritative POS quotes, GST, discounts, rounding and idempotent checkout
@@ -22,9 +23,9 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - saleable or damaged return classification, refund records and Udhaar balance reversal
 - original-price, discount, GST and purchase-cost return snapshots with printable credit notes
 - scanner-first 70/30 POS workspace with theme-aware cart/checkout surfaces and customer capture for every payment mode
-- three selectable 58 mm/80 mm thermal receipt layouts with preview and operating-system printing
+- attached-printer discovery plus three selectable 58 mm/80 mm thermal receipt layouts with preview and operating-system printing
 - searchable invoice archive with status, payment, date, amount and sort filters
-- three full-color A4 invoice templates, thermal/A4 reprints, offline PDF export, selected-invoice CSV export and copy-to-share summaries
+- three full-color A4 invoice templates, single-surface duplicate printing, thermal/A4 reprints, offline PDF export, selected-invoice CSV export and copy-to-share summaries
 - per-invoice activity history for sale, return, cancellation, reprint, PDF and sharing actions
 - one-click return/cancellation handoff from invoice details and an `F6` last-invoice shortcut in POS
 - customer accounts, append-only credit statements and locked outstanding balances

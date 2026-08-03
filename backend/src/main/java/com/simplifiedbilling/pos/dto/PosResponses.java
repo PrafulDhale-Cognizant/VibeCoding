@@ -6,6 +6,7 @@ import com.simplifiedbilling.pos.domain.PaymentMode;
 import com.simplifiedbilling.pos.domain.TaxMode;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 
 import java.math.BigDecimal;
@@ -60,6 +61,7 @@ public final class PosResponses {
             String phone,
             String gstin,
             ReceiptWidth receiptWidth,
+            InvoicePrintFormat invoicePrintFormat,
             A4InvoiceTemplate a4InvoiceTemplate,
             ThermalReceiptTemplate thermalReceiptTemplate) {
     }

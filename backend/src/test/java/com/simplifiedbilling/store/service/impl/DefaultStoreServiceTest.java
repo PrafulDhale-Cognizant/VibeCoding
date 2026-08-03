@@ -4,6 +4,7 @@ import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.domain.ShopProfile;
 import com.simplifiedbilling.store.dto.StoreDetails;
@@ -73,6 +74,7 @@ class DefaultStoreServiceTest {
                 new UpdateStoreRequest(updatedRequest, 0L));
 
         assertThat(updated.shopName()).isEqualTo("Updated Grocery");
+        assertThat(updated.invoicePrintFormat()).isEqualTo(InvoicePrintFormat.A4);
         assertThat(updated.a4InvoiceTemplate()).isEqualTo(A4InvoiceTemplate.MODERN);
         assertThat(updated.thermalReceiptTemplate()).isEqualTo(ThermalReceiptTemplate.BORDERED);
         assertThat(updated.updatedAt()).isEqualTo(NOW);
@@ -227,6 +229,7 @@ class DefaultStoreServiceTest {
                 " inv ",
                 4,
                 ReceiptWidth.MM_80,
+                InvoicePrintFormat.A4,
                 A4InvoiceTemplate.MODERN,
                 ThermalReceiptTemplate.BORDERED);
     }

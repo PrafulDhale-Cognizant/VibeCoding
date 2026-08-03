@@ -245,7 +245,7 @@ function HomePanel({ accessToken, user }: { accessToken: string; user: UserSumma
         </h3>
         <p className="mt-4 max-w-2xl leading-7 text-indigo-100">
           Store setup, authentication, inventory and point-of-sale billing are ready. Scan products,
-          collect payment and print thermal receipts from the Point of sale workspace.
+          collect payment and print invoices from the Point of sale workspace.
         </p>
       </section>
 
@@ -255,9 +255,9 @@ function HomePanel({ accessToken, user }: { accessToken: string; user: UserSumma
           <p className="mt-2 text-xl font-bold">{user.username}</p>
         </article>
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Receipt format</p>
+          <p className="text-sm font-semibold text-slate-500">Invoice printing</p>
           <p className="mt-2 text-xl font-bold">
-            {store ? store.receiptWidth.replace("MM_", "") + " mm" : "—"}
+            {store ? (store.invoicePrintFormat === "A4" ? "A4 printer" : `${store.receiptWidth.replace("MM_", "")} mm thermal`) : "—"}
           </p>
         </article>
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -290,6 +290,7 @@ function toProfile(store: StoreDetails): StoreProfile {
     invoicePrefix: store.invoicePrefix,
     financialYearStartMonth: store.financialYearStartMonth,
     receiptWidth: store.receiptWidth,
+    invoicePrintFormat: store.invoicePrintFormat,
     a4InvoiceTemplate: store.a4InvoiceTemplate,
     thermalReceiptTemplate: store.thermalReceiptTemplate
   };
@@ -301,6 +302,7 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
+  const [printers, setPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
 
   useEffect(() => {
     api
@@ -311,6 +313,11 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
       })
       .catch((caught) => setError(messageFrom(caught, "Shop settings could not be loaded.")));
   }, [accessToken]);
+
+  useEffect(() => {
+    if (!window.billingDesktop?.listPrinters) return;
+    window.billingDesktop.listPrinters().then(setPrinters).catch(() => setPrinters([]));
+  }, []);
 
   const update = <K extends keyof StoreProfile>(key: K, value: StoreProfile[K]) => {
     setProfile((current) => (current ? { ...current, [key]: value } : current));
@@ -409,8 +416,8 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-bold">Tax & receipt</h3>
-        <div className="mt-5 grid grid-cols-3 gap-5">
+        <h3 className="text-lg font-bold">Tax & invoice printing</h3>
+        <div className="mt-5 grid grid-cols-2 gap-5">
           <Field label="Invoice prefix">
             <TextInput disabled={!canEdit} required value={profile.invoicePrefix} onChange={(event) => update("invoicePrefix", event.target.value.toUpperCase())} />
           </Field>
@@ -425,7 +432,22 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
               <option value="MM_58">58 mm</option>
             </SelectInput>
           </Field>
+          <Field label="Default invoice printing">
+            <SelectInput disabled={!canEdit} value={profile.invoicePrintFormat} onChange={(event) => update("invoicePrintFormat", event.target.value as StoreProfile["invoicePrintFormat"])}>
+              <option value="A4">A4 · inkjet or laser printer</option>
+              <option value="THERMAL">Thermal · 58 mm or 80 mm printer</option>
+            </SelectInput>
+            <p className="mt-1 text-xs text-slate-500">Checkout and the primary reprint button use this printer format.</p>
+          </Field>
         </div>
+        {window.billingDesktop && (
+          <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-indigo-900">
+            <strong>Attached printers:</strong>{" "}
+            {printers.length === 0
+              ? "No printer was detected. Check Windows printer settings and reconnect the printer."
+              : printers.map((printer) => `${printer.displayName || printer.name}${printer.isDefault ? " (default)" : ""}`).join(", ")}
+          </div>
+        )}
         <div className="mt-5 grid grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5">
           <Field label="A4 invoice template">
             <SelectInput disabled={!canEdit} value={profile.a4InvoiceTemplate} onChange={(event) => update("a4InvoiceTemplate", event.target.value as StoreProfile["a4InvoiceTemplate"])}>

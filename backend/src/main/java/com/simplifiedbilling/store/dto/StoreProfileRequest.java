@@ -2,6 +2,7 @@ package com.simplifiedbilling.store.dto;
 
 import com.simplifiedbilling.store.domain.ReceiptWidth;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
@@ -39,6 +40,7 @@ public record StoreProfileRequest(
         String invoicePrefix,
         @Min(1) @Max(12) int financialYearStartMonth,
         @NotNull ReceiptWidth receiptWidth,
+        InvoicePrintFormat invoicePrintFormat,
         A4InvoiceTemplate a4InvoiceTemplate,
         ThermalReceiptTemplate thermalReceiptTemplate) {
 

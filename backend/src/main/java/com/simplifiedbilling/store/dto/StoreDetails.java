@@ -2,6 +2,7 @@ package com.simplifiedbilling.store.dto;
 
 import com.simplifiedbilling.store.domain.ReceiptWidth;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 
 import java.time.Instant;
@@ -24,6 +25,7 @@ public record StoreDetails(
         String invoicePrefix,
         int financialYearStartMonth,
         ReceiptWidth receiptWidth,
+        InvoicePrintFormat invoicePrintFormat,
         A4InvoiceTemplate a4InvoiceTemplate,
         ThermalReceiptTemplate thermalReceiptTemplate,
         boolean logoAvailable,

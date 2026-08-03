@@ -21,6 +21,7 @@ import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.service.StoreService;
@@ -301,7 +302,7 @@ class DefaultPosServiceTest {
         return new StoreDetails(
                 "Shop", "Owner", "1 Main Road", null, "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, true, "27ABCDE1234F1Z5", "INR",
-                "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80,
+                "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80, InvoicePrintFormat.THERMAL,
                 A4InvoiceTemplate.MODERN, ThermalReceiptTemplate.CLASSIC, false, 0, NOW, NOW);
     }
 
@@ -309,7 +310,7 @@ class DefaultPosServiceTest {
         return new StoreDetails(
                 "Shop", "Owner", "1 Main Road", null, "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, false, null, "INR",
-                "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80,
+                "Asia/Kolkata", "INV", 4, ReceiptWidth.MM_80, InvoicePrintFormat.THERMAL,
                 A4InvoiceTemplate.MODERN, ThermalReceiptTemplate.CLASSIC, false, 0, NOW, NOW);
     }
 

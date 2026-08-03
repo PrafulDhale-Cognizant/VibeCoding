@@ -21,6 +21,7 @@ const initialStore: StoreProfile = {
   invoicePrefix: "INV",
   financialYearStartMonth: 4,
   receiptWidth: "MM_80",
+  invoicePrintFormat: "THERMAL",
   a4InvoiceTemplate: "MODERN",
   thermalReceiptTemplate: "CLASSIC"
 };

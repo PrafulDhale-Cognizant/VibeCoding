@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import type {
   DiscountType,
@@ -14,6 +15,7 @@ import type {
 } from "../../types";
 import { ErrorNotice, SelectInput, TextInput } from "../FormControls";
 import { useStoreLogo } from "../../hooks/useStoreLogo";
+import { A4Invoice, A4InvoicePrintSurface } from "../invoices/A4Invoice";
 
 interface CartLine {
   product: ProductLookupResponse;
@@ -185,7 +187,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         if (quote) setPaymentOpen(true);
       } else if (event.key === "F4") {
         event.preventDefault();
-        if (invoice) void printReceipt(invoice, invoiceIsReprint);
+        if (invoice) void printInvoice(invoice, invoiceIsReprint);
         else if (quote) setPaymentOpen(true);
       } else if (event.key === "F6") {
         event.preventDefault();
@@ -298,13 +300,17 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     checkoutKey.current = null; setInvoice(null);
   }
 
-  async function printReceipt(receipt: PosInvoiceResponse, reprint = false) {
+  async function printInvoice(receipt: PosInvoiceResponse, reprint = false) {
     try {
       await new Promise<void>((resolve) => {
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
       });
-      const widthMm = receipt.store.receiptWidth === "MM_58" ? 58 : 80;
-      if (window.billingDesktop?.printReceipt) {
+      const format = receipt.store.invoicePrintFormat ?? "THERMAL";
+      if (format === "A4" && window.billingDesktop?.printReport) {
+        const printed = await window.billingDesktop.printReport();
+        if (!printed) return;
+      } else if (format === "THERMAL" && window.billingDesktop?.printReceipt) {
+        const widthMm = receipt.store.receiptWidth === "MM_58" ? 58 : 80;
         const printed = await window.billingDesktop.printReceipt({ widthMm });
         if (!printed) return;
       } else {
@@ -313,13 +319,13 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
       setPrintQueue((current) => current.filter((item) => item.id !== receipt.id));
       if (reprint) {
         try {
-          await api.recordInvoiceOutput(accessToken, receipt.id, "THERMAL_REPRINT");
+          await api.recordInvoiceOutput(accessToken, receipt.id, format === "A4" ? "A4_PRINT" : "THERMAL_REPRINT");
         } catch {
-          setError("Receipt printed, but its reprint history could not be recorded.");
+          setError("Invoice printed, but its reprint history could not be recorded.");
         }
       }
     } catch (caught) {
-      setError(messageFrom(caught, "The receipt could not be printed."));
+      setError(messageFrom(caught, "The invoice could not be printed."));
       setPrintQueue((current) => current.some((item) => item.id === receipt.id) ? current : [...current, receipt]);
     }
   }
@@ -526,10 +532,12 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
           logoUrl={logoUrl}
           duplicate={invoiceIsReprint}
           onClose={() => { setInvoice(null); window.setTimeout(() => barcodeInput.current?.focus(), 0); }}
-          onPrint={() => printReceipt(invoice, invoiceIsReprint)}
+          onPrint={() => printInvoice(invoice, invoiceIsReprint)}
         />
       )}
-      {invoice && <ReceiptPrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />}
+      {invoice && (invoice.store.invoicePrintFormat === "A4"
+        ? <A4InvoicePrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />
+        : <ReceiptPrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />)}
     </div>
   );
 }
@@ -667,12 +675,13 @@ function PaymentModal({
 }
 
 function ReceiptModal({ invoice, logoUrl, duplicate, onClose, onPrint }: { invoice: PosInvoiceResponse; logoUrl: string | null; duplicate: boolean; onClose: () => void; onPrint: () => Promise<void> }) {
+  const a4 = invoice.store.invoicePrintFormat === "A4";
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label="Completed receipt">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label="Completed invoice">
+      <div className={`flex max-h-[92vh] w-full ${a4 ? "max-w-5xl" : "max-w-2xl"} flex-col rounded-2xl bg-white shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className={`text-sm font-bold ${duplicate ? "text-indigo-700" : "text-emerald-700"}`}>{duplicate ? "Last completed sale" : "Sale completed"}</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div><button onClick={onClose} className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100">✕</button></div>
-        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div></div>
-        <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">{duplicate ? "Close" : "New sale"}</button><button onClick={() => void onPrint()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">{duplicate ? "Reprint receipt" : "Print receipt"} · F4</button></div>
+        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className={`mx-auto shadow-xl ${a4 ? "max-w-[850px] bg-white" : "w-fit"}`}>{a4 ? <A4Invoice invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /> : <ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} />}</div></div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">{duplicate ? "Close" : "New sale"}</button><button onClick={() => void onPrint()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">{duplicate ? "Reprint" : "Print"} {a4 ? "A4 invoice" : "thermal receipt"} · F4</button></div>
       </div>
     </div>
   );
@@ -688,7 +697,13 @@ export function ReceiptPrintSurface({
   duplicate?: boolean;
 }) {
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
-  return <><style>{`@media print { @page { size: ${width}mm 297mm; margin: 0; } }`}</style><div className="receipt-print-surface" aria-hidden="true"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div></>;
+  return createPortal(
+    <div className="invoice-print-portal" aria-hidden="true">
+      <style>{`@media print { @page { size: ${width}mm 297mm; margin: 0; } }`}</style>
+      <div className="receipt-print-surface"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div>
+    </div>,
+    document.body
+  );
 }
 
 export function ThermalReceipt({

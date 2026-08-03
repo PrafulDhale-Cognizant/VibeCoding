@@ -20,6 +20,8 @@ import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.service.StoreService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultPosService implements PosService {
 
+    private static final Logger log = LoggerFactory.getLogger(DefaultPosService.class);
     private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9._:-]{8,80}");
     private static final BigDecimal ZERO = new BigDecimal("0.00");
 
@@ -88,6 +91,7 @@ public class DefaultPosService implements PosService {
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         Invoice replay = invoiceRepository.findByIdempotencyKey(normalizedKey).orElse(null);
         if (replay != null) {
+            log.info("Replaying completed checkout invoiceId={} actorUserId={}", replay.getId(), actorUserId);
             return mapper.toInvoice(replay, storeService.getStore(), true);
         }
 
@@ -123,6 +127,12 @@ public class DefaultPosService implements PosService {
                 "INVOICE",
                 invoiceId,
                 Map.of("invoiceNumber", invoice.getInvoiceNumber(), "totalAmount", invoice.getTotalAmount()));
+        log.info(
+                "Sale checkout completed invoiceId={} invoiceNumber={} actorUserId={} totalAmount={}",
+                invoiceId,
+                invoice.getInvoiceNumber(),
+                actorUserId,
+                invoice.getTotalAmount());
         return mapper.toInvoice(invoice, store, false);
     }
 

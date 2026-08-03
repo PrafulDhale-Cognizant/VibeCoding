@@ -3,6 +3,7 @@ package com.simplifiedbilling.store.mapper;
 import com.simplifiedbilling.store.domain.ShopProfile;
 import com.simplifiedbilling.store.domain.ShopProfileData;
 import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.InvoicePrintFormat;
 import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.dto.StoreProfileRequest;
@@ -30,6 +31,7 @@ public class StoreMapper {
                 request.invoicePrefix().trim().toUpperCase(),
                 request.financialYearStartMonth(),
                 request.receiptWidth(),
+                request.invoicePrintFormat() == null ? InvoicePrintFormat.THERMAL : request.invoicePrintFormat(),
                 request.a4InvoiceTemplate() == null ? A4InvoiceTemplate.MODERN : request.a4InvoiceTemplate(),
                 request.thermalReceiptTemplate() == null ? ThermalReceiptTemplate.CLASSIC : request.thermalReceiptTemplate());
     }
@@ -53,6 +55,7 @@ public class StoreMapper {
                 profile.getInvoicePrefix(),
                 profile.getFinancialYearStartMonth(),
                 profile.getReceiptWidth(),
+                profile.getInvoicePrintFormat(),
                 profile.getA4InvoiceTemplate(),
                 profile.getThermalReceiptTemplate(),
                 profile.hasLogo(),
