@@ -28,4 +28,9 @@ public final class InvoiceQueryResponses {
             int totalPages) {
         public InvoicePage { content = List.copyOf(content); }
     }
+
+    public record InvoiceActivity(
+            String eventType,
+            String actorName,
+            Instant occurredAt) { }
 }
