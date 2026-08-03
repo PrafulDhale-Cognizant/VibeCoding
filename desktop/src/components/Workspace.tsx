@@ -454,6 +454,7 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
               <option value="MODERN">Modern Color · Indigo</option>
               <option value="CLASSIC">Classic Premium · Navy & Gold</option>
               <option value="MINIMAL">Minimal Fresh · Teal</option>
+              <option value="ELEGANT_GOLD">Elegant Gold · Reference design</option>
             </SelectInput>
             <p className="mt-1 text-xs text-slate-500">Used for A4 printing and PDF invoices with full-color backgrounds.</p>
           </Field>

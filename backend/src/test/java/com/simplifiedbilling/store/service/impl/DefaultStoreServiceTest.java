@@ -75,7 +75,7 @@ class DefaultStoreServiceTest {
 
         assertThat(updated.shopName()).isEqualTo("Updated Grocery");
         assertThat(updated.invoicePrintFormat()).isEqualTo(InvoicePrintFormat.A4);
-        assertThat(updated.a4InvoiceTemplate()).isEqualTo(A4InvoiceTemplate.MODERN);
+        assertThat(updated.a4InvoiceTemplate()).isEqualTo(A4InvoiceTemplate.ELEGANT_GOLD);
         assertThat(updated.thermalReceiptTemplate()).isEqualTo(ThermalReceiptTemplate.BORDERED);
         assertThat(updated.updatedAt()).isEqualTo(NOW);
         verify(shopRepository).flush();
@@ -230,7 +230,7 @@ class DefaultStoreServiceTest {
                 4,
                 ReceiptWidth.MM_80,
                 InvoicePrintFormat.A4,
-                A4InvoiceTemplate.MODERN,
+                A4InvoiceTemplate.ELEGANT_GOLD,
                 ThermalReceiptTemplate.BORDERED);
     }
 

@@ -25,7 +25,7 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - scanner-first 70/30 POS workspace with theme-aware cart/checkout surfaces and customer capture for every payment mode
 - attached-printer discovery plus three selectable 58 mm/80 mm thermal receipt layouts with preview and operating-system printing
 - searchable invoice archive with status, payment, date, amount and sort filters
-- three full-color A4 invoice templates, single-surface duplicate printing, thermal/A4 reprints, offline PDF export, selected-invoice CSV export and copy-to-share summaries
+- four full-color A4 invoice templates including Elegant Gold, single-surface duplicate printing, thermal/A4 reprints, offline PDF export, selected-invoice CSV export and copy-to-share summaries
 - per-invoice activity history for sale, return, cancellation, reprint, PDF and sharing actions
 - one-click return/cancellation handoff from invoice details and an `F6` last-invoice shortcut in POS
 - customer accounts, append-only credit statements and locked outstanding balances
@@ -41,7 +41,7 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - full and partial purchase returns with cumulative source-line quantity protection
 - locked supplier-return stock reversals and two-sided payable/supplier-credit accounting
 - supplier analytics with date filters, CSV export and printable A4 summaries
-- Material-inspired desktop design with Light, Dark and System appearance modes
+- Material-inspired desktop design with Light, Dark and System appearance modes plus a viewport-sticky, internally scrolling navigation drawer
 - five locally persisted color palettes: Ocean, Teal, Rose, Amber and Violet
 - React 19 and Tailwind CSS setup, login, POS, inventory, purchasing, Khata, reports, settings, users, and account screens
 - security-hardened Electron shell
