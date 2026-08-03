@@ -64,6 +64,7 @@ signing material rather than application business logic.
 - [Step-by-step Windows EXE build guide](./Exe.md)
 - [Database migration and store-upgrade guide](./Database-Migration-Guide.md)
 - [Customer installation and setup guide](./Customer-Setup-Guide.md)
+- [Self-signed internal code-signing guide](./Self-Signed-Code-Signing-Guide.md)
 
 ## Architecture
 

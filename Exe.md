@@ -8,6 +8,7 @@ Companion documents:
 
 - `Database-Migration-Guide.md` explains clean-store and existing-store migration handling.
 - `Customer-Setup-Guide.md` explains workstation, database, printer, first-run, and backup setup.
+- `Self-Signed-Code-Signing-Guide.md` explains internal/offline installer signing.
 - `database/01-new-store-bootstrap.sql` prepares an empty customer database.
 - `database/02-upgrade-preflight.sql` and `03-upgrade-postcheck.sql` verify upgrades.
 
