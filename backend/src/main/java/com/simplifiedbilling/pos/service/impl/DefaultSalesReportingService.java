@@ -63,6 +63,7 @@ public class DefaultSalesReportingService implements SalesReportingService {
                 startInclusive,
                 endExclusive,
                 totals.billCount(),
+                totals.returnAmount(),
                 totals.subtotalAmount(),
                 totals.discountAmount(),
                 totals.taxableAmount(),

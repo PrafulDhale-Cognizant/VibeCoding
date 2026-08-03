@@ -11,6 +11,7 @@ public class ReportMapper {
     public ReportResponses.SalesSummaryResponse toSalesSummary(SalesReportSnapshot snapshot) {
         return new ReportResponses.SalesSummaryResponse(
                 snapshot.billCount(),
+                snapshot.returnAmount(),
                 snapshot.subtotalAmount(),
                 snapshot.discountAmount(),
                 snapshot.taxableAmount(),

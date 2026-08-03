@@ -1,9 +1,13 @@
 package com.simplifiedbilling.pos.controller;
 
+import com.simplifiedbilling.inventory.dto.InventoryPage;
+
 import com.simplifiedbilling.pos.dto.SaleReturnRequests;
 import com.simplifiedbilling.pos.dto.SaleReturnResponses;
 import com.simplifiedbilling.pos.service.SaleReturnService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -52,5 +56,13 @@ public class SaleReturnController {
     @GetMapping("/returns/{saleReturnId}")
     public SaleReturnResponses.ReturnResponse get(@PathVariable String saleReturnId) {
         return service.getReturn(saleReturnId);
+    }
+
+    @GetMapping("/returns")
+    public InventoryPage<SaleReturnResponses.ReturnSummary> search(
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return service.searchReturns(query, page, size);
     }
 }

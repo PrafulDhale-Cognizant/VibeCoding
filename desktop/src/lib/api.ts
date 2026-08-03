@@ -27,6 +27,7 @@ import type {
   PurchasingSummaryResponse,
   SalesReportResponse,
   SaleReturnResponse,
+  SaleReturnSummaryResponse,
   SaleReturnSourceInvoice,
   ReturnDisposition,
   PosInvoiceResponse,
@@ -384,6 +385,15 @@ export const api = {
   ),
   getSaleReturn: (accessToken: string, saleReturnId: string) =>
     request<SaleReturnResponse>(`/api/v1/pos/returns/${saleReturnId}`, {}, accessToken),
+  searchSaleReturns: (accessToken: string, query = "", page = 0, size = 20) => {
+    const parameters = new URLSearchParams({ page: String(page), size: String(size) });
+    if (query.trim()) parameters.set("query", query.trim());
+    return request<InventoryPage<SaleReturnSummaryResponse>>(
+      `/api/v1/pos/returns?${parameters.toString()}`,
+      {},
+      accessToken
+    );
+  },
   searchKhataCustomers: (
     accessToken: string,
     filters: {

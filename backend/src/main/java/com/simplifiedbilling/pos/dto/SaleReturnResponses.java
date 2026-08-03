@@ -34,6 +34,10 @@ public final class SaleReturnResponses {
 
     public record Refund(PaymentMode mode, BigDecimal amount, String reference, String customerId) { }
 
+    public record ReturnSummary(
+            String id, String returnNumber, String invoiceId, String invoiceNumber,
+            SaleReturnType type, String reason, BigDecimal totalAmount, Instant returnedAt) { }
+
     public record ReturnResponse(
             String id, String returnNumber, String invoiceId, String invoiceNumber,
             SaleReturnType type, String reason, BigDecimal subtotalAmount,

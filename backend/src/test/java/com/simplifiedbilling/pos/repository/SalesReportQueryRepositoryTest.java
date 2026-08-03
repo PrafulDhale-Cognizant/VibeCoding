@@ -105,6 +105,7 @@ class SalesReportQueryRepositoryTest {
         var payments = repository.findPaymentTotals(START, END);
 
         assertThat(totals.billCount()).isEqualTo(2);
+        assertThat(totals.returnAmount()).isEqualByComparingTo("50.00");
         assertThat(totals.subtotalAmount()).isEqualByComparingTo("120.00");
         assertThat(totals.discountAmount()).isEqualByComparingTo("10.00");
         assertThat(totals.taxableAmount()).isEqualByComparingTo("100.00");
@@ -129,6 +130,7 @@ class SalesReportQueryRepositoryTest {
         var totals = repository.findFinancialTotals(START, END);
 
         assertThat(totals.billCount()).isZero();
+        assertThat(totals.returnAmount()).isEqualByComparingTo("0");
         assertThat(totals.totalSales()).isEqualByComparingTo("0");
         assertThat(repository.findInvoiceMargins(START, END)).isEmpty();
         assertThat(repository.findPaymentTotals(START, END)).isEmpty();

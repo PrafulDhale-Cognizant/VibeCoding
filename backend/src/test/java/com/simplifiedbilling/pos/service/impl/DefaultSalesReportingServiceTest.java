@@ -36,7 +36,7 @@ class DefaultSalesReportingServiceTest {
     void buildsDailyMarginAndCompletePaymentBreakdown() {
         when(repository.findFinancialTotals(START, END)).thenReturn(
                 new SalesReportQueryRepository.FinancialTotals(
-                        3, money("350"), money("15"), money("300"), money("9"),
+                        3, money("20"), money("350"), money("15"), money("300"), money("9"),
                         money("9"), money("12"), money("0"), money("330")));
         when(repository.findInvoiceMargins(START, END)).thenReturn(List.of(
                 margin("one", "2026-07-31T04:00:00Z", "100", "60"),
@@ -49,6 +49,7 @@ class DefaultSalesReportingServiceTest {
         var report = service.getSalesReport(START, END, ZoneId.of("Asia/Kolkata"));
 
         assertThat(report.billCount()).isEqualTo(3);
+        assertThat(report.returnAmount()).isEqualByComparingTo("20.00");
         assertThat(report.snapshotCost()).isEqualByComparingTo("200.00");
         assertThat(report.grossMargin()).isEqualByComparingTo("130.00");
         assertThat(report.paymentTotals()).containsEntry(PaymentMode.CASH, money("200"))

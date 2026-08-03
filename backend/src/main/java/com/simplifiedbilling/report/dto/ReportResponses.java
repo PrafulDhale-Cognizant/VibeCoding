@@ -57,6 +57,7 @@ public final class ReportResponses {
 
     public record SalesSummaryResponse(
             long billCount,
+            BigDecimal returnAmount,
             BigDecimal subtotalAmount,
             BigDecimal discountAmount,
             BigDecimal taxableAmount,

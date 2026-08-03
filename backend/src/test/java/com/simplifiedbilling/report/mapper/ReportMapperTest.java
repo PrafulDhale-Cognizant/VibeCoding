@@ -24,7 +24,7 @@ class ReportMapperTest {
         var daily = new SalesReportSnapshot.DailySalesSnapshot(
                 LocalDate.of(2026, 7, 31), 2, money("100"), money("60"), money("40"));
         var sales = new SalesReportSnapshot(
-                Instant.EPOCH, Instant.EPOCH.plusSeconds(1), 2, money("100"), money("5"),
+                Instant.EPOCH, Instant.EPOCH.plusSeconds(1), 2, money("7"), money("100"), money("5"),
                 money("84"), money("4"), money("4"), money("3"), money("0"), money("95"),
                 money("60"), money("35"), Map.of(PaymentMode.CASH, money("95")), List.of(daily));
         var alert = new ProductAlertResponse(
@@ -36,6 +36,7 @@ class ReportMapperTest {
         var mappedAlert = mapper.toStockAlert(alert);
 
         assertThat(summary.totalTax()).isEqualByComparingTo("11.00");
+        assertThat(summary.returnAmount()).isEqualByComparingTo("7.00");
         assertThat(summary.grossMargin()).isEqualByComparingTo("35.00");
         assertThat(mappedDaily.businessDate()).isEqualTo(LocalDate.of(2026, 7, 31));
         assertThat(mappedAlert.name()).isEqualTo("Rice");

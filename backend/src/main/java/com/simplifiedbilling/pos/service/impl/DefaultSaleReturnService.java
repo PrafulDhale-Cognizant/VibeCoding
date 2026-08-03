@@ -1,5 +1,6 @@
 package com.simplifiedbilling.pos.service.impl;
 
+import com.simplifiedbilling.inventory.dto.InventoryPage;
 import com.simplifiedbilling.inventory.service.CheckoutInventoryService;
 import com.simplifiedbilling.inventory.service.SaleReturnStockRequest;
 import com.simplifiedbilling.khata.service.CreditAccountService;
@@ -25,6 +26,8 @@ import com.simplifiedbilling.pos.service.SaleReturnNumberAllocator;
 import com.simplifiedbilling.pos.service.SaleReturnService;
 import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -264,6 +267,24 @@ public class DefaultSaleReturnService implements SaleReturnService {
         return toResponse(returnRepository.findDetailedById(saleReturnId)
                 .orElseThrow(() -> new ApplicationException(HttpStatus.NOT_FOUND,
                         "SALE_RETURN_NOT_FOUND", "The sale return does not exist.")), false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InventoryPage<SaleReturnResponses.ReturnSummary> searchReturns(String query, int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw invalid("INVALID_PAGE", "Page must be non-negative and size must be between 1 and 100.");
+        }
+        String normalized = normalizeText(query);
+        String pattern = normalized == null ? null : "%" + normalized.toLowerCase() + "%";
+        return InventoryPage.from(returnRepository.search(pattern,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "returnedAt"))), this::toSummary);
+    }
+
+    private SaleReturnResponses.ReturnSummary toSummary(SaleReturn value) {
+        return new SaleReturnResponses.ReturnSummary(value.getId(), value.getReturnNumber(),
+                value.getInvoice().getId(), value.getInvoice().getInvoiceNumber(), value.getType(), value.getReason(),
+                value.getTotalAmount(), value.getReturnedAt());
     }
 
     private SaleReturnResponses.SourceInvoice toSourceInvoice(Invoice invoice) {

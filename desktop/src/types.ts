@@ -445,8 +445,20 @@ export interface SaleReturnResponse {
   idempotentReplay: boolean;
 }
 
+export interface SaleReturnSummaryResponse {
+  id: string;
+  returnNumber: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  type: SaleReturnType;
+  reason: string;
+  totalAmount: number;
+  returnedAt: string;
+}
+
 export interface SalesSummaryResponse {
   billCount: number;
+  returnAmount: number;
   subtotalAmount: number;
   discountAmount: number;
   taxableAmount: number;

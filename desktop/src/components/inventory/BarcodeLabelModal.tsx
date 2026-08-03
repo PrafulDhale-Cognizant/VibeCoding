@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import type { ProductResponse } from "../../types";
 import { ErrorNotice, Field, SelectInput, TextInput } from "../FormControls";
@@ -100,7 +101,6 @@ export function BarcodeLabelModal({
 
   return (
     <>
-      <style>{`@media print { @page { size: ${size.width}mm ${size.height}mm; margin: 0; } }`}</style>
       <InventoryModal
         title="Print barcode labels"
         description={`${product.name} - ${product.barcode}`}
@@ -158,11 +158,17 @@ export function BarcodeLabelModal({
         </div>
       </InventoryModal>
 
-      <div className="barcode-print-surface" aria-hidden="true">
-        {copyIndexes.map((index) => (
-          <div className="barcode-print-page" key={index}>{label}</div>
-        ))}
-      </div>
+      {createPortal(
+        <div className="print-only-portal" aria-hidden="true">
+          <style>{`@media print { @page { size: ${size.width}mm ${size.height}mm; margin: 0; } }`}</style>
+          <div className="barcode-print-surface">
+            {copyIndexes.map((index) => (
+              <div className="barcode-print-page" key={index}>{label}</div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

@@ -11,6 +11,8 @@ import com.simplifiedbilling.pos.domain.PaymentMode;
 import com.simplifiedbilling.pos.domain.PricingLine;
 import com.simplifiedbilling.pos.domain.PricingResult;
 import com.simplifiedbilling.pos.domain.ReturnDisposition;
+import com.simplifiedbilling.pos.domain.SaleReturn;
+import com.simplifiedbilling.pos.domain.SaleReturnType;
 import com.simplifiedbilling.pos.domain.TaxMode;
 import com.simplifiedbilling.pos.dto.SaleReturnRequests;
 import com.simplifiedbilling.pos.repository.InvoiceRepository;
@@ -28,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.PageImpl;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -42,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -104,6 +108,28 @@ class DefaultSaleReturnServiceTest {
                 request("1", ReturnDisposition.SALEABLE, "59")))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("returnable");
+    }
+
+    @Test
+    void searchesReturnDocumentsByReturnOrInvoiceNumber() {
+        SaleReturn saved = mock(SaleReturn.class);
+        when(saved.getId()).thenReturn("return-id");
+        when(saved.getReturnNumber()).thenReturn("SR-2026-000003");
+        when(saved.getInvoice()).thenReturn(invoice);
+        when(saved.getType()).thenReturn(SaleReturnType.RETURN);
+        when(saved.getReason()).thenReturn("Customer return");
+        when(saved.getTotalAmount()).thenReturn(money("59"));
+        when(saved.getReturnedAt()).thenReturn(NOW);
+        when(returnRepository.search(eq("%sr-2026-000003%"), any()))
+                .thenReturn(new PageImpl<>(List.of(saved)));
+
+        var result = service.searchReturns(" SR-2026-000003 ", 0, 20);
+
+        assertThat(result.content()).singleElement().satisfies(summary -> {
+            assertThat(summary.returnNumber()).isEqualTo("SR-2026-000003");
+            assertThat(summary.invoiceNumber()).isEqualTo("INV-1");
+            assertThat(summary.totalAmount()).isEqualByComparingTo("59.00");
+        });
     }
 
     private SaleReturnRequests.CreateRequest request(String quantity, ReturnDisposition disposition, String refund) {

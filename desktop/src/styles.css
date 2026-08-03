@@ -1198,16 +1198,16 @@ input[type="radio"] {
     visibility: hidden !important;
   }
 
-  body:has(> .invoice-print-portal) > :not(.invoice-print-portal) {
+  body:has(> .print-only-portal) > :not(.print-only-portal) {
     display: none !important;
   }
 
-  body > .invoice-print-portal,
-  body > .invoice-print-portal * {
+  body > .print-only-portal,
+  body > .print-only-portal * {
     visibility: visible !important;
   }
 
-  body > .invoice-print-portal {
+  body > .print-only-portal {
     display: block !important;
   }
 
@@ -1247,8 +1247,9 @@ input[type="radio"] {
     print-color-adjust: exact;
   }
 
-  .invoice-print-portal .receipt-print-surface,
-  .invoice-print-portal .report-print-surface {
+  .print-only-portal .barcode-print-surface,
+  .print-only-portal .receipt-print-surface,
+  .print-only-portal .report-print-surface {
     position: static;
     inset: auto;
   }
@@ -1352,7 +1353,7 @@ input[type="radio"] {
   display: none;
 }
 
-.invoice-print-portal {
+.print-only-portal {
   display: none;
 }
 

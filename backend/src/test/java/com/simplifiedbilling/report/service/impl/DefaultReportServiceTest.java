@@ -139,7 +139,7 @@ class DefaultReportServiceTest {
 
     private SalesReportSnapshot snapshot(LocalDate date) {
         return new SalesReportSnapshot(
-                NOW.minusSeconds(60), NOW, 2, money("100"), money("5"), money("80"),
+                NOW.minusSeconds(60), NOW, 2, money("10"), money("100"), money("5"), money("80"),
                 money("4"), money("4"), money("0"), money("0"), money("100"),
                 money("60"), money("40"), Map.of(PaymentMode.CASH, money("100")),
                 List.of(new SalesReportSnapshot.DailySalesSnapshot(

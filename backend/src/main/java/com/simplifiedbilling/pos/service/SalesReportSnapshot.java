@@ -16,6 +16,7 @@ public record SalesReportSnapshot(
         Instant startInclusive,
         Instant endExclusive,
         long billCount,
+        BigDecimal returnAmount,
         BigDecimal subtotalAmount,
         BigDecimal discountAmount,
         BigDecimal taxableAmount,

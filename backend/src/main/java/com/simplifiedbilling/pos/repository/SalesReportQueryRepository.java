@@ -15,6 +15,7 @@ public class SalesReportQueryRepository {
 
     private static final String TOTALS_SQL = """
             SELECT sales.bill_count AS bill_count,
+                   returned.total_amount AS return_amount,
                    sales.subtotal_amount - returned.subtotal_amount AS subtotal_amount,
                    sales.discount_amount - returned.discount_amount AS discount_amount,
                    sales.taxable_amount - returned.taxable_amount AS taxable_amount,
@@ -140,6 +141,7 @@ public class SalesReportQueryRepository {
                 TOTALS_SQL,
                 (resultSet, rowNumber) -> new FinancialTotals(
                         resultSet.getLong("bill_count"),
+                        resultSet.getBigDecimal("return_amount"),
                         resultSet.getBigDecimal("subtotal_amount"),
                         resultSet.getBigDecimal("discount_amount"),
                         resultSet.getBigDecimal("taxable_amount"),
@@ -204,6 +206,7 @@ public class SalesReportQueryRepository {
 
     public record FinancialTotals(
             long billCount,
+            BigDecimal returnAmount,
             BigDecimal subtotalAmount,
             BigDecimal discountAmount,
             BigDecimal taxableAmount,

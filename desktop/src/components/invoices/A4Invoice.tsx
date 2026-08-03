@@ -17,7 +17,7 @@ export function A4InvoicePrintSurface({
   duplicate: boolean;
 }) {
   return createPortal(
-    <div className="invoice-print-portal" aria-hidden="true">
+    <div className="print-only-portal" aria-hidden="true">
       <style>{"@media print { @page { size: A4 portrait; margin: 12mm; } }"}</style>
       <div className="report-print-surface invoice-only-print-surface">
         <A4Invoice invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} />

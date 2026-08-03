@@ -88,6 +88,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   const [invoice, setInvoice] = useState<PosInvoiceResponse | null>(null);
   const [lastInvoice, setLastInvoice] = useState<PosInvoiceResponse | null>(() => loadStored(LAST_INVOICE_KEY, null));
   const [invoiceIsReprint, setInvoiceIsReprint] = useState(false);
+  const [invoicePrintMode, setInvoicePrintMode] = useState<"THERMAL" | "A4">("THERMAL");
 
   const quoteRequest = useMemo<PosQuoteRequest>(() => ({
     items: cart.map<PosCartItemRequest>((line) => ({
@@ -193,6 +194,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         event.preventDefault();
         if (!invoice && lastInvoice) {
           setInvoiceIsReprint(true);
+          setInvoicePrintMode(lastInvoice.store.invoicePrintFormat ?? "THERMAL");
           setInvoice(lastInvoice);
         }
       } else if (event.key === "Escape" && !paymentOpen && !invoice && cart.length > 0) {
@@ -300,12 +302,16 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     checkoutKey.current = null; setInvoice(null);
   }
 
-  async function printInvoice(receipt: PosInvoiceResponse, reprint = false) {
+  async function printInvoice(
+    receipt: PosInvoiceResponse,
+    reprint = false,
+    format: "THERMAL" | "A4" = receipt.store.invoicePrintFormat ?? "THERMAL"
+  ) {
     try {
+      setInvoicePrintMode(format);
       await new Promise<void>((resolve) => {
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
       });
-      const format = receipt.store.invoicePrintFormat ?? "THERMAL";
       if (format === "A4" && window.billingDesktop?.printReport) {
         const printed = await window.billingDesktop.printReport();
         if (!printed) return;
@@ -342,7 +348,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             </div>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
               {cart.length > 0 && <button type="button" onClick={holdCart} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Hold cart</button>}
-              {lastInvoice && !invoice && <button type="button" onClick={() => { setInvoiceIsReprint(true); setInvoice(lastInvoice); }} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Last invoice · F6</button>}
+              {lastInvoice && !invoice && <button type="button" onClick={() => { setInvoiceIsReprint(true); setInvoicePrintMode(lastInvoice.store.invoicePrintFormat ?? "THERMAL"); setInvoice(lastInvoice); }} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Last invoice · F6</button>}
               <Shortcut label="F1" text="Scan" />
               <Shortcut label="F2" text="Pay" />
               <Shortcut label="F4" text="Save/Print" />
@@ -355,7 +361,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             {heldCarts.map((held) => <button key={held.id} type="button" onClick={() => resumeCart(held)} className="rounded-full bg-white px-3 py-1 font-bold text-amber-900 shadow-sm" title={new Date(held.heldAt).toLocaleString("en-IN")}>{held.name} · {held.cart.length}</button>)}
           </div>}
           {printQueue.length > 0 && <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-2 text-xs">
-            <strong className="text-red-900">Print retry:</strong>{printQueue.map((queued) => <button key={queued.id} type="button" onClick={() => { setInvoiceIsReprint(false); setInvoice(queued); }} className="rounded-full bg-white px-3 py-1 font-bold text-red-800 shadow-sm">{queued.invoiceNumber}</button>)}
+            <strong className="text-red-900">Print retry:</strong>{printQueue.map((queued) => <button key={queued.id} type="button" onClick={() => { setInvoiceIsReprint(false); setInvoicePrintMode(queued.store.invoicePrintFormat ?? "THERMAL"); setInvoice(queued); }} className="rounded-full bg-white px-3 py-1 font-bold text-red-800 shadow-sm">{queued.invoiceNumber}</button>)}
           </div>}
 
           {cart.length === 0 ? (
@@ -517,6 +523,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             });
             setPaymentOpen(false);
             setInvoiceIsReprint(false);
+            setInvoicePrintMode(completed.store.invoicePrintFormat ?? "THERMAL");
             setInvoice(completed);
             setLastInvoice(completed);
             setCart([]);
@@ -531,11 +538,13 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
           invoice={invoice}
           logoUrl={logoUrl}
           duplicate={invoiceIsReprint}
+          printMode={invoicePrintMode}
           onClose={() => { setInvoice(null); window.setTimeout(() => barcodeInput.current?.focus(), 0); }}
-          onPrint={() => printInvoice(invoice, invoiceIsReprint)}
+          onPrintThermal={() => printInvoice(invoice, invoiceIsReprint, "THERMAL")}
+          onPrintA4={() => printInvoice(invoice, invoiceIsReprint, "A4")}
         />
       )}
-      {invoice && (invoice.store.invoicePrintFormat === "A4"
+      {invoice && (invoicePrintMode === "A4"
         ? <A4InvoicePrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />
         : <ReceiptPrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />)}
     </div>
@@ -674,14 +683,26 @@ function PaymentModal({
   );
 }
 
-function ReceiptModal({ invoice, logoUrl, duplicate, onClose, onPrint }: { invoice: PosInvoiceResponse; logoUrl: string | null; duplicate: boolean; onClose: () => void; onPrint: () => Promise<void> }) {
-  const a4 = invoice.store.invoicePrintFormat === "A4";
+function ReceiptModal({ invoice, logoUrl, duplicate, printMode, onClose, onPrintThermal, onPrintA4 }: {
+  invoice: PosInvoiceResponse;
+  logoUrl: string | null;
+  duplicate: boolean;
+  printMode: "THERMAL" | "A4";
+  onClose: () => void;
+  onPrintThermal: () => Promise<void>;
+  onPrintA4: () => Promise<void>;
+}) {
+  const a4 = printMode === "A4";
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label="Completed invoice">
       <div className={`flex max-h-[92vh] w-full ${a4 ? "max-w-5xl" : "max-w-2xl"} flex-col rounded-2xl bg-white shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className={`text-sm font-bold ${duplicate ? "text-indigo-700" : "text-emerald-700"}`}>{duplicate ? "Last completed sale" : "Sale completed"}</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div><button onClick={onClose} className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100">✕</button></div>
         <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className={`mx-auto shadow-xl ${a4 ? "max-w-[850px] bg-white" : "w-fit"}`}>{a4 ? <A4Invoice invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /> : <ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} />}</div></div>
-        <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">{duplicate ? "Close" : "New sale"}</button><button onClick={() => void onPrint()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">{duplicate ? "Reprint" : "Print"} {a4 ? "A4 invoice" : "thermal receipt"} · F4</button></div>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 p-5">
+          <button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">{duplicate ? "Close" : "New sale"}</button>
+          <button onClick={() => void onPrintThermal()} className="rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-2.5 font-bold text-indigo-800">Print thermal</button>
+          <button onClick={() => void onPrintA4()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">Print A4</button>
+        </div>
       </div>
     </div>
   );
@@ -698,7 +719,7 @@ export function ReceiptPrintSurface({
 }) {
   const width = invoice.store.receiptWidth === "MM_58" ? 58 : 80;
   return createPortal(
-    <div className="invoice-print-portal" aria-hidden="true">
+    <div className="print-only-portal" aria-hidden="true">
       <style>{`@media print { @page { size: ${width}mm 297mm; margin: 0; } }`}</style>
       <div className="receipt-print-surface"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div>
     </div>,

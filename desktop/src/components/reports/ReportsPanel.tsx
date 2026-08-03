@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import type {
   DashboardReportResponse,
@@ -9,7 +10,9 @@ import type {
   PosInvoiceResponse,
   ReportStockAlertResponse,
   SalesReportResponse,
-  SalesSummaryResponse
+  SalesSummaryResponse,
+  SaleReturnResponse,
+  SaleReturnSummaryResponse
 } from "../../types";
 import { useStoreLogo } from "../../hooks/useStoreLogo";
 import { ErrorNotice, Field, SelectInput, SuccessNotice, TextInput } from "../FormControls";
@@ -81,6 +84,14 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
   const [invoiceMaxAmount, setInvoiceMaxAmount] = useState("");
   const [invoiceSort, setInvoiceSort] = useState<"NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW">("NEWEST");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [returnQuery, setReturnQuery] = useState("");
+  const [returnPage, setReturnPage] = useState(0);
+  const [saleReturns, setSaleReturns] = useState<SaleReturnSummaryResponse[]>([]);
+  const [returnTotal, setReturnTotal] = useState(0);
+  const [returnPages, setReturnPages] = useState(0);
+  const [selectedReturn, setSelectedReturn] = useState<SaleReturnResponse | null>(null);
+  const [returnLoadingId, setReturnLoadingId] = useState<string | null>(null);
+  const [returnPrinting, setReturnPrinting] = useState(false);
   const [success, setSuccess] = useState("");
 
   const loadDashboard = useCallback(async () => {
@@ -130,6 +141,23 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
     }, invoiceQuery.trim() ? 220 : 0);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [accessToken, canViewInvoices, invoiceFrom, invoiceMaxAmount, invoiceMinAmount, invoicePage, invoicePaymentMode, invoiceQuery, invoiceSort, invoiceStatus, invoiceTo]);
+
+  useEffect(() => {
+    if (!canViewInvoices) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api.searchSaleReturns(accessToken, returnQuery, returnPage, 20)
+        .then((page) => {
+          if (!cancelled) {
+            setSaleReturns(page.content);
+            setReturnTotal(page.totalElements);
+            setReturnPages(page.totalPages);
+          }
+        })
+        .catch((caught) => { if (!cancelled) setError(messageFrom(caught, "Sales returns could not be loaded.")); });
+    }, returnQuery.trim() ? 220 : 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [accessToken, canViewInvoices, returnPage, returnQuery]);
 
   useEffect(() => {
     setSelectedInvoiceIds(new Set());
@@ -336,6 +364,36 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
     setSelectedInvoiceIds(new Set());
   }
 
+  async function openSaleReturn(saleReturnId: string) {
+    setReturnLoadingId(saleReturnId);
+    setError("");
+    try {
+      setSelectedReturn(await api.getSaleReturn(accessToken, saleReturnId));
+    } catch (caught) {
+      setError(messageFrom(caught, "The sales return could not be opened."));
+    } finally {
+      setReturnLoadingId(null);
+    }
+  }
+
+  async function printSaleReturn() {
+    if (!selectedReturn) return;
+    setReturnPrinting(true);
+    setError("");
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      if (window.billingDesktop?.printReport) {
+        await window.billingDesktop.printReport();
+      } else {
+        window.print();
+      }
+    } catch (caught) {
+      setError(messageFrom(caught, "The return invoice could not be printed."));
+    } finally {
+      setReturnPrinting(false);
+    }
+  }
+
   function exportCsv() {
     if (!sales) return;
     const summary = sales.summary;
@@ -356,6 +414,7 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
       ["Period totals", summary.billCount, summary.totalSales.toFixed(2),
         summary.snapshotCost.toFixed(2), summary.grossMargin.toFixed(2)],
       ["Discount", summary.discountAmount.toFixed(2)],
+      ["Sales returns", summary.returnAmount.toFixed(2)],
       ["CGST", summary.cgstAmount.toFixed(2)],
       ["SGST", summary.sgstAmount.toFixed(2)],
       ["IGST", summary.igstAmount.toFixed(2)],
@@ -392,6 +451,7 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
         </div>
         <div className="flex gap-3">
           {canViewInvoices && <a href="#invoice-archive" className="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-800">Find / reprint invoice</a>}
+          {canViewInvoices && <a href="#sales-return-archive" className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100">Find return invoice</a>}
           <button
             type="button"
             onClick={() => void refreshDashboard()}
@@ -405,8 +465,9 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
 
       {dashboard && (
         <>
-          <section className="grid grid-cols-4 gap-4">
-            <MetricCard label="Today's sales" value={money.format(dashboard.today.totalSales)} tone="indigo" />
+          <section className="grid grid-cols-5 gap-4">
+            <MetricCard label="Today's net sales" value={money.format(dashboard.today.totalSales)} tone="indigo" />
+            <MetricCard label="Sales returned" value={money.format(dashboard.today.returnAmount)} tone="red" />
             <MetricCard label="Bills completed" value={String(dashboard.today.billCount)} tone="slate" />
             <MetricCard label="Gross margin" value={money.format(dashboard.today.grossMargin)} tone="green" />
             <MetricCard label="Khata outstanding" value={money.format(dashboard.credit.totalOutstanding)} tone="red" />
@@ -508,6 +569,31 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
         <div className="flex items-center justify-between border-t border-slate-200 p-4 text-sm"><span>Page {invoicePages === 0 ? 0 : invoicePage + 1} of {invoicePages}</span><div className="flex gap-2"><button type="button" disabled={invoicePage === 0} onClick={() => setInvoicePage((page) => page - 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={invoicePage + 1 >= invoicePages} onClick={() => setInvoicePage((page) => page + 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Next</button></div></div>
       </section>}
 
+      {canViewInvoices && <section id="sales-return-archive" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-end justify-between gap-5 border-b border-slate-200 p-5">
+          <div><h4 className="font-bold">Sales return invoices</h4><p className="text-xs text-slate-500">{returnTotal} return document{returnTotal === 1 ? "" : "s"} · search and reprint credit notes</p></div>
+          <Field label="Search return">
+            <TextInput className="mt-0 w-80" value={returnQuery} onChange={(event) => { setReturnQuery(event.target.value); setReturnPage(0); }} placeholder="SR number, invoice number, reason" />
+          </Field>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Return invoice</th><th>Original invoice</th><th>Type</th><th>Reason</th><th>Date</th><th className="text-right">Amount</th><th className="px-5 text-right">Action</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{saleReturns.map((saleReturn) => <tr key={saleReturn.id} className="hover:bg-slate-50">
+              <td className="px-5 py-3"><button type="button" onClick={() => void openSaleReturn(saleReturn.id)} className="font-bold text-indigo-700 hover:underline">{saleReturn.returnNumber}</button></td>
+              <td className="font-semibold">{saleReturn.invoiceNumber}</td>
+              <td>{saleReturn.type === "CANCELLATION" ? "Cancellation" : "Sales return"}</td>
+              <td className="max-w-64 truncate" title={saleReturn.reason}>{saleReturn.reason}</td>
+              <td>{new Date(saleReturn.returnedAt).toLocaleString("en-IN")}</td>
+              <td className="text-right font-bold text-red-700">{money.format(saleReturn.totalAmount)}</td>
+              <td className="px-5 text-right"><button type="button" disabled={returnLoadingId !== null} onClick={() => void openSaleReturn(saleReturn.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 disabled:opacity-50">{returnLoadingId === saleReturn.id ? "Opening…" : "Open return"}</button></td>
+            </tr>)}</tbody>
+          </table>
+          {saleReturns.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No sales return invoices found.</p>}
+        </div>
+        <div className="flex items-center justify-between border-t border-slate-200 p-4 text-sm"><span>Page {returnPages === 0 ? 0 : returnPage + 1} of {returnPages}</span><div className="flex gap-2"><button type="button" disabled={returnPage === 0} onClick={() => setReturnPage((page) => page - 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={returnPage + 1 >= returnPages} onClick={() => setReturnPage((page) => page + 1)} className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40">Next</button></div></div>
+      </section>}
+
       {selectedInvoice && (
         <InvoiceViewer
           invoice={selectedInvoice}
@@ -525,9 +611,45 @@ export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
       )}
       {selectedInvoice && invoiceOutputMode === "THERMAL" && <ReceiptPrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
       {selectedInvoice && invoiceOutputMode === "A4" && <A4InvoicePrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
-      {sales && !selectedInvoice && <PrintableReport report={sales} />}
+      {selectedReturn && <SaleReturnViewer saleReturn={selectedReturn} shopName={dashboard?.shopName ?? "Simplified Billing"} printing={returnPrinting} onClose={() => setSelectedReturn(null)} onPrint={printSaleReturn} />}
+      {selectedReturn && <SaleReturnPrintSurface saleReturn={selectedReturn} shopName={dashboard?.shopName ?? "Simplified Billing"} />}
+      {sales && !selectedInvoice && !selectedReturn && <PrintableReport report={sales} />}
     </div>
   );
+}
+
+function SaleReturnViewer({ saleReturn, shopName, printing, onClose, onPrint }: {
+  saleReturn: SaleReturnResponse;
+  shopName: string;
+  printing: boolean;
+  onClose: () => void;
+  onPrint: () => Promise<void>;
+}) {
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label={`Sales return ${saleReturn.returnNumber}`}>
+    <div className="flex max-h-[94vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className="text-sm font-bold text-red-700">Saved return invoice</p><h3 className="text-xl font-bold">{saleReturn.returnNumber}</h3><p className="mt-1 text-xs text-slate-500">Against {saleReturn.invoiceNumber} · {new Date(saleReturn.returnedAt).toLocaleString("en-IN")}</p></div><button type="button" onClick={onClose} disabled={printing} className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100">×</button></div>
+      <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-6"><div className="mx-auto max-w-[850px] bg-white shadow-xl"><SaleReturnDocument saleReturn={saleReturn} shopName={shopName} /></div></div>
+      <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button type="button" onClick={onClose} disabled={printing} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">Close</button><button type="button" onClick={() => void onPrint()} disabled={printing} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white disabled:opacity-50">{printing ? "Opening printer…" : "Print A4 return invoice"}</button></div>
+    </div>
+  </div>;
+}
+
+function SaleReturnPrintSurface({ saleReturn, shopName }: { saleReturn: SaleReturnResponse; shopName: string }) {
+  return createPortal(<div className="print-only-portal" aria-hidden="true">
+    <style>{"@media print { @page { size: A4 portrait; margin: 12mm; } }"}</style>
+    <div className="report-print-surface"><SaleReturnDocument saleReturn={saleReturn} shopName={shopName} /></div>
+  </div>, document.body);
+}
+
+function SaleReturnDocument({ saleReturn, shopName }: { saleReturn: SaleReturnResponse; shopName: string }) {
+  const gst = saleReturn.cgstAmount + saleReturn.sgstAmount + saleReturn.igstAmount;
+  return <article className="a4-invoice min-h-[270mm] bg-white p-10 text-slate-900">
+    <header className="flex items-start justify-between border-b-4 border-red-700 pb-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-red-700">Sales return / credit note</p><h1 className="mt-2 text-3xl font-black">{shopName}</h1><p className="mt-2 text-sm text-slate-500">Reason: {saleReturn.reason}</p></div><div className="text-right"><h2 className="text-xl font-black text-red-800">{saleReturn.returnNumber}</h2><p className="mt-2 text-sm">Original invoice: <strong>{saleReturn.invoiceNumber}</strong></p><p className="text-sm">{new Date(saleReturn.returnedAt).toLocaleString("en-IN")}</p><p className="mt-2 inline-block rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-800">{saleReturn.type === "CANCELLATION" ? "FULL CANCELLATION" : "SALES RETURN"}</p></div></header>
+    <table className="mt-8 w-full border-collapse text-sm"><thead><tr className="bg-red-800 text-white"><th className="p-3 text-left">#</th><th className="p-3 text-left">Returned item</th><th className="p-3 text-left">Condition</th><th className="p-3 text-right">Qty</th><th className="p-3 text-right">Amount</th></tr></thead><tbody>{saleReturn.items.map((item) => <tr key={item.invoiceItemId} className="border-b border-slate-200"><td className="p-3">{item.lineNumber}</td><td className="p-3 font-semibold">{item.productName}</td><td className="p-3">{item.disposition.toLowerCase()}</td><td className="p-3 text-right">{item.quantity} {item.unit}</td><td className="p-3 text-right font-bold">{money.format(item.lineTotal)}</td></tr>)}</tbody></table>
+    <div className="mt-7 ml-auto w-80 space-y-2 rounded-xl bg-slate-50 p-5 text-sm"><div className="flex justify-between"><span>Subtotal returned</span><strong>{money.format(saleReturn.subtotalAmount)}</strong></div>{saleReturn.discountAmount > 0 && <div className="flex justify-between"><span>Discount reversed</span><strong>{money.format(saleReturn.discountAmount)}</strong></div>}{gst > 0 && <><div className="flex justify-between"><span>CGST reversed</span><strong>{money.format(saleReturn.cgstAmount)}</strong></div><div className="flex justify-between"><span>SGST reversed</span><strong>{money.format(saleReturn.sgstAmount)}</strong></div><div className="flex justify-between"><span>IGST reversed</span><strong>{money.format(saleReturn.igstAmount)}</strong></div></>}<div className="flex justify-between border-t-2 border-red-700 pt-3 text-lg text-red-800"><span className="font-black">RETURN TOTAL</span><strong>{money.format(saleReturn.totalAmount)}</strong></div></div>
+    <section className="mt-8"><h3 className="text-sm font-black uppercase tracking-wider text-slate-500">Refund details</h3><div className="mt-3 grid grid-cols-2 gap-3">{saleReturn.refunds.map((refund, index) => <div key={`${refund.mode}-${index}`} className="rounded-lg border border-slate-200 p-3 text-sm"><strong>{paymentLabels[refund.mode]}</strong><span className="float-right font-black">{money.format(refund.amount)}</span>{refund.reference && <p className="mt-1 text-xs text-slate-500">Ref: {refund.reference}</p>}</div>)}</div></section>
+    <footer className="mt-12 border-t border-slate-200 pt-4 text-xs text-slate-500">This computer-generated credit note records goods returned against invoice {saleReturn.invoiceNumber}.</footer>
+  </article>;
 }
 
 function InvoiceViewer({
@@ -708,9 +830,10 @@ function SalesReportBody({ report }: { report: SalesReportResponse }) {
     : (report.summary.grossMargin / report.summary.totalSales) * 100;
   return (
     <div>
-      <div className="grid grid-cols-5 gap-px bg-slate-200">
+      <div className="grid grid-cols-6 gap-px bg-slate-200">
         <ReportMetric label="Bills" value={String(report.summary.billCount)} />
-        <ReportMetric label="Sales" value={money.format(report.summary.totalSales)} />
+        <ReportMetric label="Net sales" value={money.format(report.summary.totalSales)} />
+        <ReportMetric label="Returns" value={money.format(report.summary.returnAmount)} />
         <ReportMetric label="Discount" value={money.format(report.summary.discountAmount)} />
         <ReportMetric label="GST" value={money.format(report.summary.totalTax)} />
         <ReportMetric label="Margin" value={`${money.format(report.summary.grossMargin)} · ${marginRate.toFixed(1)}%`} />
@@ -759,7 +882,8 @@ function PrintableReport({ report }: { report: SalesReportResponse }) {
         </div>
         <table className="report-summary-table">
           <tbody>
-            <tr><th>Bills</th><td>{report.summary.billCount}</td><th>Total sales</th><td>{money.format(report.summary.totalSales)}</td></tr>
+            <tr><th>Bills</th><td>{report.summary.billCount}</td><th>Net sales</th><td>{money.format(report.summary.totalSales)}</td></tr>
+            <tr><th>Sales returns</th><td>{money.format(report.summary.returnAmount)}</td><th>Subtotal net of returns</th><td>{money.format(report.summary.subtotalAmount)}</td></tr>
             <tr><th>Discount</th><td>{money.format(report.summary.discountAmount)}</td><th>Total GST</th><td>{money.format(report.summary.totalTax)}</td></tr>
             <tr><th>Snapshot cost</th><td>{money.format(report.summary.snapshotCost)}</td><th>Gross margin</th><td>{money.format(report.summary.grossMargin)}</td></tr>
           </tbody>
