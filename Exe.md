@@ -1,6 +1,15 @@
 # Building the Simplified Billing Windows EXE
 
-This guide explains how to build the Windows installer for this repository.
+This is the release guide for a new developer who needs to convert this repository into a Windows
+installer and hand it to a customer or installation technician. Follow the steps in order for every
+release; do not package directly from an unverified development build.
+
+Companion documents:
+
+- `Database-Migration-Guide.md` explains clean-store and existing-store migration handling.
+- `Customer-Setup-Guide.md` explains workstation, database, printer, first-run, and backup setup.
+- `database/01-new-store-bootstrap.sql` prepares an empty customer database.
+- `database/02-upgrade-preflight.sql` and `03-upgrade-postcheck.sql` verify upgrades.
 
 The generated installer contains:
 
@@ -12,6 +21,22 @@ The current installer does **not** include MySQL or a private Java runtime. A co
 the current installer must therefore have Java 21 and MySQL installed and configured. Review the
 [optional Java runtime bundle](#12-optional-java-runtime-bundle) and
 [MySQL distribution warning](#13-mysql-distribution-warning) before distributing it to customers.
+
+## Release output and build flow
+
+The release pipeline is:
+
+```text
+Flyway SQL -> Spring Boot JAR -> React production assets -> Electron package -> NSIS .exe
+```
+
+Electron Builder copies `backend/target/billing-backend.jar` into the installer's
+`resources/backend` directory. The Flyway SQL files are already inside that JAR, so the installed
+backend can initialize a blank `billing` database or upgrade an older store automatically.
+
+The internal release folder supplied to support should contain the signed `.exe`, the three
+`database/*.sql` operational scripts, `Customer-Setup-Guide.md`, the release notes, and a checksum.
+Do not include source code, `.env`, database passwords, JWT secrets, signing keys, or customer data.
 
 ## 1. Build-machine requirements
 
@@ -125,6 +150,24 @@ Get-Item .\backend\target\billing-backend.jar | Select-Object FullName,Length,La
 
 The first command must print `True`. Electron Builder expects exactly this filename and location.
 
+### Verify the database migrations inside the JAR
+
+Confirm that every Flyway migration was packaged:
+
+```powershell
+$migrationEntries = jar tf .\backend\target\billing-backend.jar |
+    Select-String "BOOT-INF/classes/db/migration/V[0-9]+__.*\.sql"
+$migrationEntries
+"Packaged migration count: $($migrationEntries.Count)"
+```
+
+For the current release, the list must contain V1 through V16. Flyway sorts versions numerically;
+the alphabetical file order shown by Windows Explorer is not the execution order.
+
+Do not build a combined SQL schema file for upgrades. Existing stores must be upgraded by Flyway so
+checksums, installed versions, and failed states remain auditable. Follow
+`Database-Migration-Guide.md` for clean-store and upgrade testing.
+
 ## 7. Verify the desktop application
 
 Run the TypeScript check and build the production React renderer:
@@ -195,6 +238,12 @@ During installation:
 7. Create a product, complete a sale, print a receipt, and process a return.
 8. Create an encrypted backup, close the application, and test restoration.
 9. Restart Windows and confirm MySQL and the application can start again.
+
+For a clean-store acceptance test, run `database/01-new-store-bootstrap.sql`, start the installed
+application, and then run `database/03-upgrade-postcheck.sql`. For an upgrade acceptance test, take
+a copy of a database from the previous release, run the preflight script, start the new installer,
+and compare the postcheck results. Never use a customer's only production database for release
+testing.
 
 Uninstalling the desktop application deliberately keeps its application-data directory. This
 protects local recovery data during an application reinstall.
@@ -341,12 +390,15 @@ Before distributing the `.exe`, confirm:
 - [ ] The real MySQL migration test passed on a disposable database.
 - [ ] `npm ci`, desktop type checking, and the production build passed.
 - [ ] `backend/target/billing-backend.jar` was created before packaging.
+- [ ] The JAR contains every released Flyway SQL file from V1 through the current version.
+- [ ] Both blank-to-latest and previous-to-latest migrations passed on disposable MySQL 8.4 databases.
 - [ ] The installer was tested on a clean 64-bit Windows machine.
 - [ ] Java and MySQL prerequisites, or approved bundled runtimes, were verified.
 - [ ] Billing, receipt printing, uploaded logo printing, returns, backup, and restore were tested.
 - [ ] Secrets are not embedded in source files or the installer.
 - [ ] The installer is signed and its signature is valid.
 - [ ] An encrypted backup was created before upgrading an existing installation.
+- [ ] The signed installer, database support SQL, customer guide, release notes, and checksum are in the handoff package.
 
 ## Troubleshooting
 
