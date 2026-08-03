@@ -1,5 +1,7 @@
 export type UserRole = "OWNER" | "ADMIN" | "CASHIER" | "INVENTORY_MANAGER" | "VIEWER";
 export type ReceiptWidth = "MM_58" | "MM_80";
+export type A4InvoiceTemplate = "MODERN" | "CLASSIC" | "MINIMAL";
+export type ThermalReceiptTemplate = "CLASSIC" | "COMPACT" | "BORDERED";
 
 export interface UserSummary {
   id: string;
@@ -43,6 +45,8 @@ export interface StoreProfile {
   invoicePrefix: string;
   financialYearStartMonth: number;
   receiptWidth: ReceiptWidth;
+  a4InvoiceTemplate: A4InvoiceTemplate;
+  thermalReceiptTemplate: ThermalReceiptTemplate;
 }
 
 export interface StoreDetails extends Omit<StoreProfile, "addressLine2" | "email" | "gstin"> {
@@ -276,6 +280,8 @@ export interface PosInvoiceResponse {
     phone: string;
     gstin: string | null;
     receiptWidth: ReceiptWidth;
+    a4InvoiceTemplate: A4InvoiceTemplate;
+    thermalReceiptTemplate: ThermalReceiptTemplate;
   };
   totals: PosQuoteResponse;
   payments: Array<{

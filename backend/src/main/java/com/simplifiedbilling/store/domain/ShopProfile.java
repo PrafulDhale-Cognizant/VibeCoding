@@ -75,6 +75,16 @@ public class ShopProfile {
     @Column(name = "receipt_width", length = 8, nullable = false)
     private ReceiptWidth receiptWidth;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "a4_invoice_template", length = 16, nullable = false)
+    private A4InvoiceTemplate a4InvoiceTemplate;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "thermal_receipt_template", length = 16, nullable = false)
+    private ThermalReceiptTemplate thermalReceiptTemplate;
+
     @Column(name = "logo_file_name")
     private String logoFileName;
 
@@ -134,6 +144,8 @@ public class ShopProfile {
         invoicePrefix = data.invoicePrefix();
         financialYearStartMonth = (byte) data.financialYearStartMonth();
         receiptWidth = data.receiptWidth();
+        a4InvoiceTemplate = data.a4InvoiceTemplate();
+        thermalReceiptTemplate = data.thermalReceiptTemplate();
     }
 
     public void updateLogo(String fileName, String contentType, byte[] data, Instant now) {
@@ -228,6 +240,14 @@ public class ShopProfile {
 
     public ReceiptWidth getReceiptWidth() {
         return receiptWidth;
+    }
+
+    public A4InvoiceTemplate getA4InvoiceTemplate() {
+        return a4InvoiceTemplate;
+    }
+
+    public ThermalReceiptTemplate getThermalReceiptTemplate() {
+        return thermalReceiptTemplate;
     }
 
     public boolean hasLogo() {

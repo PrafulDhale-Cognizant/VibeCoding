@@ -289,7 +289,9 @@ function toProfile(store: StoreDetails): StoreProfile {
     timezone: "Asia/Kolkata",
     invoicePrefix: store.invoicePrefix,
     financialYearStartMonth: store.financialYearStartMonth,
-    receiptWidth: store.receiptWidth
+    receiptWidth: store.receiptWidth,
+    a4InvoiceTemplate: store.a4InvoiceTemplate,
+    thermalReceiptTemplate: store.thermalReceiptTemplate
   };
 }
 
@@ -422,6 +424,24 @@ function StorePanel({ accessToken, canEdit }: { accessToken: string; canEdit: bo
               <option value="MM_80">80 mm</option>
               <option value="MM_58">58 mm</option>
             </SelectInput>
+          </Field>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <Field label="A4 invoice template">
+            <SelectInput disabled={!canEdit} value={profile.a4InvoiceTemplate} onChange={(event) => update("a4InvoiceTemplate", event.target.value as StoreProfile["a4InvoiceTemplate"])}>
+              <option value="MODERN">Modern Color · Indigo</option>
+              <option value="CLASSIC">Classic Premium · Navy & Gold</option>
+              <option value="MINIMAL">Minimal Fresh · Teal</option>
+            </SelectInput>
+            <p className="mt-1 text-xs text-slate-500">Used for A4 printing and PDF invoices with full-color backgrounds.</p>
+          </Field>
+          <Field label="Thermal receipt template">
+            <SelectInput disabled={!canEdit} value={profile.thermalReceiptTemplate} onChange={(event) => update("thermalReceiptTemplate", event.target.value as StoreProfile["thermalReceiptTemplate"])}>
+              <option value="CLASSIC">Classic receipt</option>
+              <option value="COMPACT">Compact · saves paper</option>
+              <option value="BORDERED">Bordered · bold totals</option>
+            </SelectInput>
+            <p className="mt-1 text-xs text-slate-500">Thermal layouts remain high-contrast for monochrome 58 mm and 80 mm printers.</p>
           </Field>
         </div>
         <div className="mt-5 flex items-center gap-4">

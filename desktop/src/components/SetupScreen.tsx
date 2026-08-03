@@ -20,7 +20,9 @@ const initialStore: StoreProfile = {
   timezone: "Asia/Kolkata",
   invoicePrefix: "INV",
   financialYearStartMonth: 4,
-  receiptWidth: "MM_80"
+  receiptWidth: "MM_80",
+  a4InvoiceTemplate: "MODERN",
+  thermalReceiptTemplate: "CLASSIC"
 };
 
 export function SetupScreen({

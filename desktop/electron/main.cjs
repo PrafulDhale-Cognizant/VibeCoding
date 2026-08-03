@@ -78,6 +78,10 @@ function clearRefreshToken() {
   }
 }
 
+function isPrintCancellation(reason) {
+  return /canc(?:el+|l)ed/i.test(String(reason || ""));
+}
+
 function databaseConfig() {
   const raw = process.env.BILLING_DB_URL || "jdbc:mysql://127.0.0.1:3306/billing";
   const parsed = new URL(raw.replace(/^jdbc:/, ""));
@@ -675,8 +679,9 @@ if (!hasSingleInstanceLock) {
             pageSize: { width: widthMm * 1000, height: 297000 }
           },
           (success, failureReason) => {
-            if (success) resolve();
-            else reject(new Error(failureReason || "Receipt printing was cancelled or failed."));
+            if (success) resolve(true);
+            else if (isPrintCancellation(failureReason)) resolve(false);
+            else reject(new Error(failureReason || "Receipt printing failed."));
           }
         );
       });
@@ -687,14 +692,14 @@ if (!hasSingleInstanceLock) {
         event.sender.print(
           {
             silent: false,
-            printBackground: false,
+            printBackground: true,
             margins: { marginType: "default" },
             pageSize: "A4"
           },
           (success, failureReason) => {
             if (success) {
               resolve(true);
-            } else if (/cancel(?:led|ed)/i.test(failureReason || "")) {
+            } else if (isPrintCancellation(failureReason)) {
               resolve(false);
             } else {
               reject(new Error(failureReason || "Report printing failed."));
@@ -717,7 +722,7 @@ if (!hasSingleInstanceLock) {
       if (selected.canceled || !selected.filePath) return null;
       const pdf = await event.sender.printToPDF({
         pageSize: "A4",
-        printBackground: false,
+        printBackground: true,
         preferCSSPageSize: true
       });
       fs.writeFileSync(selected.filePath, pdf, { mode: 0o600 });

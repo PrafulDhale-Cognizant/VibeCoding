@@ -1218,6 +1218,21 @@ input[type="radio"] {
     color: black;
     font-family: Arial, sans-serif;
     font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .a4-invoice .report-print-header {
+    margin-bottom: 0;
+    text-align: left;
+  }
+
+  .a4-invoice .report-print-header p {
+    color: inherit;
+  }
+
+  .a4-invoice h3 {
+    margin: 0;
   }
 
   .report-print-header {

@@ -4,6 +4,8 @@ import com.simplifiedbilling.inventory.domain.ProductUnit;
 import com.simplifiedbilling.inventory.service.SaleProductSnapshot;
 import com.simplifiedbilling.pos.mapper.PosMapper;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
+import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import org.junit.jupiter.api.Test;
 
@@ -118,12 +120,15 @@ class InvoiceDomainTest {
         StoreDetails store = new StoreDetails(
                 "My Shop", "Owner", "Line 1", " Line 2 ", "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, false, null, "INR", "Asia/Kolkata", "INV",
-                4, ReceiptWidth.MM_58, false, 0, NOW, NOW);
+                4, ReceiptWidth.MM_58, A4InvoiceTemplate.MODERN, ThermalReceiptTemplate.CLASSIC,
+                false, 0, NOW, NOW);
 
         var response = mapper.toInvoice(invoice, store, true);
 
         assertThat(response.store().address()).isEqualTo("Line 1, Line 2, Pune, Maharashtra 411001");
         assertThat(response.store().receiptWidth()).isEqualTo(ReceiptWidth.MM_58);
+        assertThat(response.store().a4InvoiceTemplate()).isEqualTo(A4InvoiceTemplate.MODERN);
+        assertThat(response.store().thermalReceiptTemplate()).isEqualTo(ThermalReceiptTemplate.CLASSIC);
         assertThat(response.totals().lines().getFirst().availableQuantity()).isNull();
         assertThat(response.totals().gstApplied()).isTrue();
         assertThat(response.payments().getFirst().mode()).isEqualTo(PaymentMode.CARD);

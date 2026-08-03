@@ -17,5 +17,7 @@ public record ShopProfileData(
         String timezone,
         String invoicePrefix,
         int financialYearStartMonth,
-        ReceiptWidth receiptWidth) {
+        ReceiptWidth receiptWidth,
+        A4InvoiceTemplate a4InvoiceTemplate,
+        ThermalReceiptTemplate thermalReceiptTemplate) {
 }

@@ -15,6 +15,8 @@ import com.simplifiedbilling.report.dto.ReportResponses;
 import com.simplifiedbilling.report.mapper.ReportMapper;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
+import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.service.StoreService;
 import org.junit.jupiter.api.BeforeEach;
@@ -158,7 +160,8 @@ class DefaultReportServiceTest {
         return new StoreDetails(
                 "My Shop", "Owner", "1 Main Road", null, "Pune", "Maharashtra", "27",
                 "411001", "9999999999", null, true, "27ABCDE1234F1Z5", "INR",
-                timezone, "INV", 4, ReceiptWidth.MM_80, false, 0, NOW, NOW);
+                timezone, "INV", 4, ReceiptWidth.MM_80,
+                A4InvoiceTemplate.MODERN, ThermalReceiptTemplate.CLASSIC, false, 0, NOW, NOW);
     }
 
     private BigDecimal money(String value) {

@@ -3,6 +3,8 @@ package com.simplifiedbilling.store.service.impl;
 import com.simplifiedbilling.shared.audit.AuditWriter;
 import com.simplifiedbilling.shared.exception.ApplicationException;
 import com.simplifiedbilling.store.domain.ReceiptWidth;
+import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.domain.ShopProfile;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.dto.StoreLogo;
@@ -71,6 +73,8 @@ class DefaultStoreServiceTest {
                 new UpdateStoreRequest(updatedRequest, 0L));
 
         assertThat(updated.shopName()).isEqualTo("Updated Grocery");
+        assertThat(updated.a4InvoiceTemplate()).isEqualTo(A4InvoiceTemplate.MODERN);
+        assertThat(updated.thermalReceiptTemplate()).isEqualTo(ThermalReceiptTemplate.BORDERED);
         assertThat(updated.updatedAt()).isEqualTo(NOW);
         verify(shopRepository).flush();
         verify(auditWriter).write(
@@ -222,7 +226,9 @@ class DefaultStoreServiceTest {
                 "Asia/Kolkata",
                 " inv ",
                 4,
-                ReceiptWidth.MM_80);
+                ReceiptWidth.MM_80,
+                A4InvoiceTemplate.MODERN,
+                ThermalReceiptTemplate.BORDERED);
     }
 
     private void assertApplicationError(

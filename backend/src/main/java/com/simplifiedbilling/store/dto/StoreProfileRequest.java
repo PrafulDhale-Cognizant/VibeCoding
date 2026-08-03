@@ -1,6 +1,8 @@
 package com.simplifiedbilling.store.dto;
 
 import com.simplifiedbilling.store.domain.ReceiptWidth;
+import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -36,7 +38,9 @@ public record StoreProfileRequest(
         @NotBlank @Pattern(regexp = "[A-Za-z0-9-]{1,12}", message = "Use letters, digits, or hyphens.")
         String invoicePrefix,
         @Min(1) @Max(12) int financialYearStartMonth,
-        @NotNull ReceiptWidth receiptWidth) {
+        @NotNull ReceiptWidth receiptWidth,
+        A4InvoiceTemplate a4InvoiceTemplate,
+        ThermalReceiptTemplate thermalReceiptTemplate) {
 
     @AssertTrue(message = "GSTIN is required when the shop is GST registered.")
     public boolean isGstinConsistent() {

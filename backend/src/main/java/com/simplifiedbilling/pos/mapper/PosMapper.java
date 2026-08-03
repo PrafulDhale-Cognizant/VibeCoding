@@ -54,7 +54,8 @@ public class PosMapper {
                 invoice.getTotalAmount());
         String address = joinAddress(store);
         PosResponses.StoreReceiptResponse receiptStore = new PosResponses.StoreReceiptResponse(
-                store.shopName(), address, store.phone(), store.gstin(), store.receiptWidth());
+                store.shopName(), address, store.phone(), store.gstin(), store.receiptWidth(),
+                store.a4InvoiceTemplate(), store.thermalReceiptTemplate());
         return new PosResponses.InvoiceResponse(
                 invoice.getId(), invoice.getInvoiceNumber(), invoice.getStatus(),
                 invoice.getCashierUserId(), invoice.getCompletedAt(), invoice.getNotes(),

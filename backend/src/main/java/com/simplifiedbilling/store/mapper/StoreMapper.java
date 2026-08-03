@@ -2,6 +2,8 @@ package com.simplifiedbilling.store.mapper;
 
 import com.simplifiedbilling.store.domain.ShopProfile;
 import com.simplifiedbilling.store.domain.ShopProfileData;
+import com.simplifiedbilling.store.domain.A4InvoiceTemplate;
+import com.simplifiedbilling.store.domain.ThermalReceiptTemplate;
 import com.simplifiedbilling.store.dto.StoreDetails;
 import com.simplifiedbilling.store.dto.StoreProfileRequest;
 import org.springframework.stereotype.Component;
@@ -27,7 +29,9 @@ public class StoreMapper {
                 request.timezone(),
                 request.invoicePrefix().trim().toUpperCase(),
                 request.financialYearStartMonth(),
-                request.receiptWidth());
+                request.receiptWidth(),
+                request.a4InvoiceTemplate() == null ? A4InvoiceTemplate.MODERN : request.a4InvoiceTemplate(),
+                request.thermalReceiptTemplate() == null ? ThermalReceiptTemplate.CLASSIC : request.thermalReceiptTemplate());
     }
 
     public StoreDetails toDetails(ShopProfile profile) {
@@ -49,6 +53,8 @@ public class StoreMapper {
                 profile.getInvoicePrefix(),
                 profile.getFinancialYearStartMonth(),
                 profile.getReceiptWidth(),
+                profile.getA4InvoiceTemplate(),
+                profile.getThermalReceiptTemplate(),
                 profile.hasLogo(),
                 profile.getVersion(),
                 profile.getSetupCompletedAt(),
