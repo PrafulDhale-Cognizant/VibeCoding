@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -143,8 +144,26 @@ class DefaultInvoiceQueryServiceTest {
     }
 
     @Test
+    void supportsEveryInvoiceSortDirection() {
+        when(invoiceRepository.searchInvoices(eq(""), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<>(List.of(), invocation.getArgument(7), 0));
+
+        service.search(new InvoiceSearchCriteria(
+                "", null, null, null, null, null, null, "OLDEST", 0, 20));
+        service.search(new InvoiceSearchCriteria(
+                "", null, null, null, null, null, null, "AMOUNT_LOW", 0, 20));
+
+        ArgumentCaptor<Pageable> requests = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceRepository, times(2)).searchInvoices(
+                eq(""), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), requests.capture());
+        assertThat(requests.getAllValues().get(0).getSort().getOrderFor("completedAt").isAscending()).isTrue();
+        assertThat(requests.getAllValues().get(1).getSort().getOrderFor("totalAmount").isAscending()).isTrue();
+    }
+
+    @Test
     void recordsAndReturnsInvoiceActivity() {
-        Invoice source = invoice("invoice-1", "INV-0001", new BigDecimal("100.00"), List.of());
+        Invoice source = mock(Invoice.class);
+        when(source.getInvoiceNumber()).thenReturn("INV-0001");
         when(invoiceRepository.findById("invoice-1")).thenReturn(java.util.Optional.of(source));
         var activity = new com.simplifiedbilling.pos.dto.InvoiceQueryResponses.InvoiceActivity(
                 "SALE_COMPLETED", "Owner", Instant.parse("2026-08-01T10:00:00Z"));
@@ -163,6 +182,27 @@ class DefaultInvoiceQueryServiceTest {
         assertThatThrownBy(() -> service.recordOutput("user-1", "missing", InvoiceOutputType.PDF_EXPORT))
                 .isInstanceOfSatisfying(ApplicationException.class,
                         exception -> assertThat(exception.getCode()).isEqualTo("INVOICE_NOT_FOUND"));
+    }
+
+    @Test
+    void recordsEverySupportedInvoiceOutputAndRejectsMissingType() {
+        Invoice source = mock(Invoice.class);
+        when(source.getInvoiceNumber()).thenReturn("INV-0001");
+        when(invoiceRepository.findById("invoice-1")).thenReturn(java.util.Optional.of(source));
+
+        service.recordOutput("user-1", "invoice-1", InvoiceOutputType.A4_PRINT);
+        service.recordOutput("user-1", "invoice-1", InvoiceOutputType.PDF_EXPORT);
+        service.recordOutput("user-1", "invoice-1", InvoiceOutputType.SHARE_COPIED);
+
+        verify(auditWriter).write("user-1", "INVOICE_A4_PRINTED", "INVOICE", "invoice-1",
+                Map.of("invoiceNumber", "INV-0001"));
+        verify(auditWriter).write("user-1", "INVOICE_PDF_EXPORTED", "INVOICE", "invoice-1",
+                Map.of("invoiceNumber", "INV-0001"));
+        verify(auditWriter).write("user-1", "INVOICE_SHARE_COPIED", "INVOICE", "invoice-1",
+                Map.of("invoiceNumber", "INV-0001"));
+        assertThatThrownBy(() -> service.recordOutput("user-1", "invoice-1", null))
+                .isInstanceOfSatisfying(ApplicationException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("OUTPUT_TYPE_REQUIRED"));
     }
 
     private Invoice invoice(String id, String number, BigDecimal total, List<Payment> payments) {

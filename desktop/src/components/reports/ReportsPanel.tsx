@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api } from "../../lib/api";
 import type {
   DashboardReportResponse,
+  InvoiceActivityResponse,
+  InvoiceOutputType,
   InvoiceSummaryResponse,
   PaymentMode,
   PosInvoiceResponse,
@@ -10,7 +12,7 @@ import type {
   SalesSummaryResponse
 } from "../../types";
 import { useStoreLogo } from "../../hooks/useStoreLogo";
-import { ErrorNotice, Field, TextInput } from "../FormControls";
+import { ErrorNotice, Field, SelectInput, SuccessNotice, TextInput } from "../FormControls";
 import { ReceiptPrintSurface, ThermalReceipt } from "../pos/PosPanel";
 
 const money = new Intl.NumberFormat("en-IN", {
@@ -45,7 +47,11 @@ function messageFrom(caught: unknown, fallback: string) {
   return caught instanceof Error ? caught.message : fallback;
 }
 
-export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: string; canViewInvoices: boolean }) {
+export function ReportsPanel({ accessToken, canViewInvoices, onStartReturn }: {
+  accessToken: string;
+  canViewInvoices: boolean;
+  onStartReturn: (invoiceNumber: string) => void;
+}) {
   const initial = useMemo(initialRange, []);
   const logoUrl = useStoreLogo(accessToken);
   const [dashboard, setDashboard] = useState<DashboardReportResponse | null>(null);
@@ -62,8 +68,19 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
   const [invoiceTotal, setInvoiceTotal] = useState(0);
   const [invoicePages, setInvoicePages] = useState(0);
   const [selectedInvoice, setSelectedInvoice] = useState<PosInvoiceResponse | null>(null);
+  const [invoiceActivities, setInvoiceActivities] = useState<InvoiceActivityResponse[]>([]);
   const [invoiceLoadingId, setInvoiceLoadingId] = useState<string | null>(null);
   const [invoicePrinting, setInvoicePrinting] = useState(false);
+  const [invoiceOutputMode, setInvoiceOutputMode] = useState<"THERMAL" | "A4">("THERMAL");
+  const [invoiceStatus, setInvoiceStatus] = useState<PosInvoiceResponse["status"] | "ALL">("ALL");
+  const [invoicePaymentMode, setInvoicePaymentMode] = useState<PaymentMode | "ALL">("ALL");
+  const [invoiceFrom, setInvoiceFrom] = useState("");
+  const [invoiceTo, setInvoiceTo] = useState("");
+  const [invoiceMinAmount, setInvoiceMinAmount] = useState("");
+  const [invoiceMaxAmount, setInvoiceMaxAmount] = useState("");
+  const [invoiceSort, setInvoiceSort] = useState<"NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW">("NEWEST");
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [success, setSuccess] = useState("");
 
   const loadDashboard = useCallback(async () => {
     const response = await api.getDashboardReport(accessToken);
@@ -87,12 +104,35 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
     if (!canViewInvoices) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      api.searchInvoices(accessToken, invoiceQuery.trim(), invoicePage, 20)
+      let from: string | undefined;
+      let to: string | undefined;
+      if (invoiceFrom) from = new Date(`${invoiceFrom}T00:00:00`).toISOString();
+      if (invoiceTo) {
+        const end = new Date(`${invoiceTo}T00:00:00`);
+        end.setDate(end.getDate() + 1);
+        to = end.toISOString();
+      }
+      api.searchInvoices(accessToken, {
+        query: invoiceQuery.trim(),
+        status: invoiceStatus,
+        paymentMode: invoicePaymentMode,
+        from,
+        to,
+        minAmount: invoiceMinAmount === "" ? null : Number(invoiceMinAmount),
+        maxAmount: invoiceMaxAmount === "" ? null : Number(invoiceMaxAmount),
+        sort: invoiceSort,
+        page: invoicePage,
+        size: 20
+      })
         .then((page) => { if (!cancelled) { setInvoices(page.content); setInvoiceTotal(page.totalElements); setInvoicePages(page.totalPages); } })
         .catch((caught) => { if (!cancelled) setError(messageFrom(caught, "Invoices could not be loaded.")); });
     }, invoiceQuery.trim() ? 220 : 0);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [accessToken, canViewInvoices, invoicePage, invoiceQuery]);
+  }, [accessToken, canViewInvoices, invoiceFrom, invoiceMaxAmount, invoiceMinAmount, invoicePage, invoicePaymentMode, invoiceQuery, invoiceSort, invoiceStatus, invoiceTo]);
+
+  useEffect(() => {
+    setSelectedInvoiceIds(new Set());
+  }, [invoiceFrom, invoiceMaxAmount, invoiceMinAmount, invoicePage, invoicePaymentMode, invoiceQuery, invoiceSort, invoiceStatus, invoiceTo]);
 
   async function applyRange(event: FormEvent) {
     event.preventDefault();
@@ -140,8 +180,15 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
   async function openInvoice(invoiceId: string) {
     setInvoiceLoadingId(invoiceId);
     setError("");
+    setSuccess("");
     try {
-      setSelectedInvoice(await api.getInvoice(accessToken, invoiceId));
+      const [invoice, activity] = await Promise.all([
+        api.getInvoice(accessToken, invoiceId),
+        api.getInvoiceActivity(accessToken, invoiceId)
+      ]);
+      setSelectedInvoice(invoice);
+      setInvoiceActivities(activity);
+      setInvoiceOutputMode("THERMAL");
     } catch (caught) {
       setError(messageFrom(caught, "The invoice could not be opened."));
     } finally {
@@ -149,10 +196,21 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
     }
   }
 
+  async function refreshInvoiceActivity(invoiceId: string) {
+    setInvoiceActivities(await api.getInvoiceActivity(accessToken, invoiceId));
+  }
+
+  async function recordInvoiceOutput(invoiceId: string, type: InvoiceOutputType) {
+    await api.recordInvoiceOutput(accessToken, invoiceId, type);
+    await refreshInvoiceActivity(invoiceId);
+  }
+
   async function reprintInvoice() {
     if (!selectedInvoice) return;
     setInvoicePrinting(true);
     setError("");
+    setSuccess("");
+    setInvoiceOutputMode("THERMAL");
     try {
       await new Promise<void>((resolve) => {
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -163,11 +221,117 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
       } else {
         window.print();
       }
+      await recordInvoiceOutput(selectedInvoice.id, "THERMAL_REPRINT");
+      setSuccess(`Invoice ${selectedInvoice.invoiceNumber} sent to the receipt printer.`);
     } catch (caught) {
       setError(messageFrom(caught, "The invoice could not be reprinted."));
     } finally {
       setInvoicePrinting(false);
     }
+  }
+
+  async function printInvoiceA4() {
+    if (!selectedInvoice) return;
+    setInvoicePrinting(true);
+    setError("");
+    setSuccess("");
+    setInvoiceOutputMode("A4");
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      if (window.billingDesktop?.printReport) {
+        const printed = await window.billingDesktop.printReport();
+        if (!printed) return;
+      } else window.print();
+      await recordInvoiceOutput(selectedInvoice.id, "A4_PRINT");
+      setSuccess(`A4 invoice ${selectedInvoice.invoiceNumber} sent to the printer.`);
+    } catch (caught) {
+      setError(messageFrom(caught, "The A4 invoice could not be printed."));
+    } finally {
+      setInvoicePrinting(false);
+    }
+  }
+
+  async function saveInvoicePdf() {
+    if (!selectedInvoice) return;
+    setInvoicePrinting(true);
+    setError("");
+    setSuccess("");
+    setInvoiceOutputMode("A4");
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      if (!window.billingDesktop?.saveInvoicePdf) {
+        window.print();
+        return;
+      }
+      const saved = await window.billingDesktop.saveInvoicePdf(selectedInvoice.invoiceNumber);
+      if (!saved) return;
+      await recordInvoiceOutput(selectedInvoice.id, "PDF_EXPORT");
+      setSuccess(`${saved.fileName} saved successfully.`);
+    } catch (caught) {
+      setError(messageFrom(caught, "The invoice PDF could not be saved."));
+    } finally {
+      setInvoicePrinting(false);
+    }
+  }
+
+  async function copyInvoiceShareText() {
+    if (!selectedInvoice) return;
+    const customer = selectedInvoice.payments.find((payment) => payment.customerName);
+    const text = [
+      selectedInvoice.store.shopName,
+      `Invoice ${selectedInvoice.invoiceNumber}`,
+      `Date: ${new Date(selectedInvoice.completedAt).toLocaleString("en-IN")}`,
+      customer?.customerName ? `Customer: ${customer.customerName}` : null,
+      `Total: ${money.format(selectedInvoice.totals.totalAmount)}`,
+      `Status: ${selectedInvoice.status.replaceAll("_", " ")}`
+    ].filter(Boolean).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      await recordInvoiceOutput(selectedInvoice.id, "SHARE_COPIED");
+      setSuccess("Invoice summary copied. Paste it into WhatsApp, email, or another app.");
+    } catch (caught) {
+      setError(messageFrom(caught, "The invoice summary could not be copied."));
+    }
+  }
+
+  function exportInvoicesCsv() {
+    const selected = selectedInvoiceIds.size
+      ? invoices.filter((invoice) => selectedInvoiceIds.has(invoice.id))
+      : invoices;
+    if (!selected.length) return;
+    const rows = [
+      ["Invoice", "Date", "Customer", "Phone", "Status", "Total", "Returnable"],
+      ...selected.map((invoice) => [
+        invoice.invoiceNumber,
+        invoice.completedAt,
+        invoice.customerName ?? "Walk-in",
+        invoice.customerPhone ?? "",
+        invoice.status,
+        invoice.totalAmount.toFixed(2),
+        invoice.returnableTotal.toFixed(2)
+      ])
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setSuccess(`${selected.length} invoice${selected.length === 1 ? "" : "s"} exported.`);
+  }
+
+  function resetInvoiceFilters() {
+    setInvoiceQuery("");
+    setInvoiceStatus("ALL");
+    setInvoicePaymentMode("ALL");
+    setInvoiceFrom("");
+    setInvoiceTo("");
+    setInvoiceMinAmount("");
+    setInvoiceMaxAmount("");
+    setInvoiceSort("NEWEST");
+    setInvoicePage(0);
+    setSelectedInvoiceIds(new Set());
   }
 
   function exportCsv() {
@@ -215,6 +379,7 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {error && <ErrorNotice message={error} />}
+      {success && <SuccessNotice message={success} />}
 
       <div className="flex items-end justify-between gap-4">
         <div>
@@ -316,13 +481,25 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
       </section>
 
       {canViewInvoices && <section id="invoice-archive" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 p-5">
-          <div><h4 className="font-bold">All invoices</h4><p className="text-xs text-slate-500">{invoiceTotal} invoices · searchable by invoice number, customer, or phone</p></div>
-          <TextInput className="mt-0 max-w-sm" value={invoiceQuery} onChange={(event) => { setInvoiceQuery(event.target.value); setInvoicePage(0); }} placeholder="Search invoices" />
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div><h4 className="font-bold">Invoice archive</h4><p className="text-xs text-slate-500">{invoiceTotal} matching invoices · view, return, print, export, or share</p></div>
+            <div className="flex gap-2"><button type="button" onClick={resetInvoiceFilters} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">Clear filters</button><button type="button" disabled={invoices.length === 0} onClick={exportInvoicesCsv} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Export {selectedInvoiceIds.size ? "selected" : "page"} CSV</button></div>
+          </div>
+          <div className="mt-4 grid grid-cols-7 gap-3">
+            <Field label="Search"><TextInput className="mt-0" value={invoiceQuery} onChange={(event) => { setInvoiceQuery(event.target.value); setInvoicePage(0); }} placeholder="Number, customer, phone" /></Field>
+            <Field label="Status"><SelectInput value={invoiceStatus} onChange={(event) => { setInvoiceStatus(event.target.value as typeof invoiceStatus); setInvoicePage(0); }}><option value="ALL">All statuses</option><option value="COMPLETED">Completed</option><option value="PARTIALLY_RETURNED">Partially returned</option><option value="RETURNED">Returned</option><option value="CANCELLED">Cancelled</option></SelectInput></Field>
+            <Field label="Payment"><SelectInput value={invoicePaymentMode} onChange={(event) => { setInvoicePaymentMode(event.target.value as typeof invoicePaymentMode); setInvoicePage(0); }}><option value="ALL">All modes</option><option value="CASH">Cash</option><option value="UPI">UPI</option><option value="CARD">Card</option><option value="UDHAAR">Udhaar</option></SelectInput></Field>
+            <Field label="From"><TextInput type="date" value={invoiceFrom} onChange={(event) => { setInvoiceFrom(event.target.value); setInvoicePage(0); }} /></Field>
+            <Field label="To"><TextInput type="date" value={invoiceTo} onChange={(event) => { setInvoiceTo(event.target.value); setInvoicePage(0); }} /></Field>
+            <Field label="Min amount"><TextInput type="number" min="0" step="0.01" value={invoiceMinAmount} onChange={(event) => { setInvoiceMinAmount(event.target.value); setInvoicePage(0); }} /></Field>
+            <Field label="Max amount"><TextInput type="number" min="0" step="0.01" value={invoiceMaxAmount} onChange={(event) => { setInvoiceMaxAmount(event.target.value); setInvoicePage(0); }} /></Field>
+          </div>
+          <div className="mt-3 flex justify-end"><SelectInput className="mt-0 max-w-52" value={invoiceSort} onChange={(event) => { setInvoiceSort(event.target.value as typeof invoiceSort); setInvoicePage(0); }}><option value="NEWEST">Newest first</option><option value="OLDEST">Oldest first</option><option value="AMOUNT_HIGH">Highest amount</option><option value="AMOUNT_LOW">Lowest amount</option></SelectInput></div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Invoice</th><th>Customer</th><th>Status</th><th>Date</th><th className="text-right">Total</th><th className="px-5 text-right">Actions</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{invoices.map((invoice) => <tr key={invoice.id} className="hover:bg-slate-50"><td className="px-5 py-3"><button type="button" onClick={() => void openInvoice(invoice.id)} className="font-bold text-indigo-700 hover:underline">{invoice.invoiceNumber}</button></td><td><p className="font-semibold">{invoice.customerName ?? "Walk-in"}</p><p className="text-xs text-slate-500">{invoice.customerPhone}</p></td><td>{invoice.status.replaceAll("_", " ")}</td><td>{new Date(invoice.completedAt).toLocaleString("en-IN")}</td><td className="text-right font-bold">{money.format(invoice.totalAmount)}</td><td className="px-5 text-right"><button type="button" disabled={invoiceLoadingId !== null} onClick={() => void openInvoice(invoice.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">{invoiceLoadingId === invoice.id ? "Opening…" : "View / Reprint"}</button></td></tr>)}</tbody>
+          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3"><input type="checkbox" aria-label="Select all invoices on this page" checked={invoices.length > 0 && invoices.every((invoice) => selectedInvoiceIds.has(invoice.id))} onChange={(event) => setSelectedInvoiceIds(event.target.checked ? new Set(invoices.map((invoice) => invoice.id)) : new Set())} /></th><th>Invoice</th><th>Customer</th><th>Status</th><th>Date</th><th className="text-right">Total</th><th className="px-5 text-right">Actions</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{invoices.map((invoice) => <tr key={invoice.id} className="hover:bg-slate-50"><td className="px-5 py-3"><input type="checkbox" aria-label={`Select invoice ${invoice.invoiceNumber}`} checked={selectedInvoiceIds.has(invoice.id)} onChange={(event) => setSelectedInvoiceIds((current) => { const next = new Set(current); if (event.target.checked) next.add(invoice.id); else next.delete(invoice.id); return next; })} /></td><td><button type="button" onClick={() => void openInvoice(invoice.id)} className="font-bold text-indigo-700 hover:underline">{invoice.invoiceNumber}</button></td><td><p className="font-semibold">{invoice.customerName ?? "Walk-in"}</p><p className="text-xs text-slate-500">{invoice.customerPhone}</p></td><td>{invoice.status.replaceAll("_", " ")}</td><td>{new Date(invoice.completedAt).toLocaleString("en-IN")}</td><td className="text-right font-bold">{money.format(invoice.totalAmount)}</td><td className="px-5 text-right"><button type="button" disabled={invoiceLoadingId !== null} onClick={() => void openInvoice(invoice.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">{invoiceLoadingId === invoice.id ? "Opening…" : "Open invoice"}</button></td></tr>)}</tbody>
           </table>
           {invoices.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No invoices found.</p>}
         </div>
@@ -333,12 +510,19 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
         <InvoiceViewer
           invoice={selectedInvoice}
           logoUrl={logoUrl}
+          activities={invoiceActivities}
+          returnableTotal={invoices.find((invoice) => invoice.id === selectedInvoice.id)?.returnableTotal ?? 0}
           printing={invoicePrinting}
           onClose={() => setSelectedInvoice(null)}
-          onPrint={reprintInvoice}
+          onPrintReceipt={reprintInvoice}
+          onPrintA4={printInvoiceA4}
+          onSavePdf={saveInvoicePdf}
+          onCopyShare={copyInvoiceShareText}
+          onStartReturn={() => { setSelectedInvoice(null); onStartReturn(selectedInvoice.invoiceNumber); }}
         />
       )}
-      {selectedInvoice && <ReceiptPrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
+      {selectedInvoice && invoiceOutputMode === "THERMAL" && <ReceiptPrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
+      {selectedInvoice && invoiceOutputMode === "A4" && <A4InvoicePrintSurface invoice={selectedInvoice} logoUrl={logoUrl} duplicate />}
       {sales && !selectedInvoice && <PrintableReport report={sales} />}
     </div>
   );
@@ -347,31 +531,104 @@ export function ReportsPanel({ accessToken, canViewInvoices }: { accessToken: st
 function InvoiceViewer({
   invoice,
   logoUrl,
+  activities,
+  returnableTotal,
   printing,
   onClose,
-  onPrint
+  onPrintReceipt,
+  onPrintA4,
+  onSavePdf,
+  onCopyShare,
+  onStartReturn
 }: {
   invoice: PosInvoiceResponse;
   logoUrl: string | null;
+  activities: InvoiceActivityResponse[];
+  returnableTotal: number;
   printing: boolean;
   onClose: () => void;
-  onPrint: () => Promise<void>;
+  onPrintReceipt: () => Promise<void>;
+  onPrintA4: () => Promise<void>;
+  onSavePdf: () => Promise<void>;
+  onCopyShare: () => Promise<void>;
+  onStartReturn: () => void;
 }) {
+  const reprintCount = activities.filter((activity) => activity.eventType.includes("PRINTED")).length;
+  const canReturn = returnableTotal > 0 && invoice.status !== "RETURNED" && invoice.status !== "CANCELLED";
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label={`Invoice ${invoice.invoiceNumber}`}>
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-5">
-          <div><p className="text-sm font-bold text-indigo-700">Saved invoice</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div>
-          <button type="button" onClick={onClose} disabled={printing} aria-label="Close invoice" className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100 disabled:opacity-50">X</button>
+          <div><div className="flex items-center gap-2"><p className="text-sm font-bold text-indigo-700">Saved invoice</p><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase">{invoice.status.replaceAll("_", " ")}</span></div><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3><p className="mt-1 text-xs text-slate-500">{new Date(invoice.completedAt).toLocaleString("en-IN")} · {money.format(invoice.totals.totalAmount)} · {reprintCount} print{reprintCount === 1 ? "" : "s"} recorded</p></div>
+          <button type="button" onClick={onClose} disabled={printing} aria-label="Close invoice" className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100 disabled:opacity-50">✕</button>
         </div>
-        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate /></div></div>
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(380px,1fr)_360px] overflow-hidden">
+          <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto w-fit shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate /></div></div>
+          <aside className="min-h-0 overflow-auto border-l border-slate-200 p-5">
+            <h4 className="font-bold">Invoice activities</h4>
+            <p className="mt-1 text-xs text-slate-500">Actions are retained against the original invoice.</p>
+            <div className="mt-4 space-y-2">
+              {activities.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No activity is available.</p> : activities.map((activity, index) => (
+                <div key={`${activity.eventType}-${activity.occurredAt}-${index}`} className="rounded-lg border border-slate-200 p-3">
+                  <p className="text-xs font-bold">{invoiceActivityLabel(activity.eventType)}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{activity.actorName} · {new Date(activity.occurredAt).toLocaleString("en-IN")}</p>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 p-5">
-          <p className="text-xs text-slate-500">Reprints are marked as a duplicate copy.</p>
-          <div className="flex gap-3"><button type="button" onClick={onClose} disabled={printing} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold disabled:opacity-50">Close</button><button type="button" onClick={() => void onPrint()} disabled={printing} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white hover:bg-indigo-800 disabled:opacity-50">{printing ? "Opening print…" : "Reprint receipt"}</button></div>
+          <div><p className="text-xs font-bold text-slate-700">Returnable: {money.format(returnableTotal)}</p><p className="text-[11px] text-slate-500">Thermal and A4 reprints are marked as duplicate copies.</p></div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={onStartReturn} disabled={printing || !canReturn} className="rounded-lg border border-red-300 px-3 py-2.5 text-sm font-bold text-red-700 disabled:opacity-40">Return / cancel</button>
+            <button type="button" onClick={() => void onCopyShare()} disabled={printing} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-bold disabled:opacity-50">Copy to share</button>
+            <button type="button" onClick={() => void onSavePdf()} disabled={printing} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-bold disabled:opacity-50">Save PDF</button>
+            <button type="button" onClick={() => void onPrintA4()} disabled={printing} className="rounded-lg border border-indigo-300 px-3 py-2.5 text-sm font-bold text-indigo-700 disabled:opacity-50">Print A4</button>
+            <button type="button" onClick={() => void onPrintReceipt()} disabled={printing} className="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-800 disabled:opacity-50">{printing ? "Working…" : "Reprint receipt"}</button>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function invoiceActivityLabel(eventType: string) {
+  const labels: Record<string, string> = {
+    SALE_COMPLETED: "Sale completed",
+    SALE_RETURNED: "Items returned",
+    SALE_CANCELLED: "Invoice cancelled",
+    INVOICE_THERMAL_REPRINTED: "Thermal receipt reprinted",
+    INVOICE_A4_PRINTED: "A4 invoice printed",
+    INVOICE_PDF_EXPORTED: "PDF exported",
+    INVOICE_SHARE_COPIED: "Share summary copied"
+  };
+  return labels[eventType] ?? eventType.replaceAll("_", " ").toLowerCase();
+}
+
+function A4InvoicePrintSurface({ invoice, logoUrl, duplicate }: { invoice: PosInvoiceResponse; logoUrl: string | null; duplicate: boolean }) {
+  return <><style>{"@media print { @page { size: A4 portrait; margin: 12mm; } }"}</style><div className="report-print-surface" aria-hidden="true"><A4Invoice invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div></>;
+}
+
+function A4Invoice({ invoice, logoUrl, duplicate }: { invoice: PosInvoiceResponse; logoUrl: string | null; duplicate: boolean }) {
+  const customer = invoice.payments.find((payment) => payment.customerName);
+  return (
+    <article>
+      <header className="report-print-header flex items-start justify-between border-b border-slate-900 pb-4">
+        <div className="flex items-start gap-4">{logoUrl && <img src={logoUrl} alt="" className="h-16 w-20 object-contain grayscale" />}<div><h1 className="text-2xl font-black">{invoice.store.shopName}</h1><p>{invoice.store.address}</p><p>Phone: {invoice.store.phone}{invoice.store.gstin ? ` · GSTIN: ${invoice.store.gstin}` : ""}</p></div></div>
+        <div className="text-right"><p className="text-xs font-bold uppercase tracking-widest">Tax invoice</p><h2 className="mt-1 text-xl font-black">{invoice.invoiceNumber}</h2>{duplicate && <p className="mt-2 border-y border-black py-1 text-xs font-black tracking-widest">DUPLICATE COPY</p>}</div>
+      </header>
+      <section className="mt-5 grid grid-cols-2 gap-6 text-sm"><div><p className="text-xs font-bold uppercase text-slate-500">Invoice details</p><p className="mt-1">Date: {new Date(invoice.completedAt).toLocaleString("en-IN")}</p><p>Cashier ID: {invoice.cashierUserId}</p><p>Status: {invoice.status.replaceAll("_", " ")}</p></div><div><p className="text-xs font-bold uppercase text-slate-500">Customer</p><p className="mt-1 font-bold">{customer?.customerName ?? "Walk-in customer"}</p>{customer?.customerPhone && <p>{customer.customerPhone}</p>}</div></section>
+      <table className="report-detail-table mt-6"><thead><tr><th>#</th><th className="text-left">Item</th><th>Qty</th><th>Rate</th><th>Tax</th><th className="text-right">Amount</th></tr></thead><tbody>{invoice.totals.lines.map((line) => <tr key={line.lineNumber}><td>{line.lineNumber}</td><td>{line.name}</td><td>{line.quantity}</td><td>{money.format(line.unitPrice)}</td><td>{invoice.totals.gstApplied ? `${line.gstRate}%` : "—"}</td><td className="text-right">{money.format(line.lineTotal)}</td></tr>)}</tbody></table>
+      <section className="ml-auto mt-6 w-80 space-y-1 text-sm"><A4Total label="Subtotal" value={invoice.totals.subtotalAmount} /><A4Total label="Discount" value={-(invoice.totals.lineDiscountAmount + invoice.totals.billDiscountAmount)} />{invoice.totals.gstApplied && (invoice.totals.taxMode === "INTRA_STATE" ? <><A4Total label="CGST" value={invoice.totals.cgstAmount} /><A4Total label="SGST" value={invoice.totals.sgstAmount} /></> : <A4Total label="IGST" value={invoice.totals.igstAmount} />)}<A4Total label="Round off" value={invoice.totals.roundOffAmount} /><div className="mt-2 flex justify-between border-y-2 border-black py-2 text-lg font-black"><span>Total</span><span>{money.format(invoice.totals.totalAmount)}</span></div></section>
+      <section className="mt-6"><h3 className="text-sm font-black">Payment details</h3>{invoice.payments.map((payment, index) => <p key={index} className="text-sm">{payment.mode}: {money.format(payment.amount)}{payment.reference ? ` · Ref ${payment.reference}` : ""}</p>)}</section>
+      {invoice.notes && <p className="mt-5 text-sm"><strong>Notes:</strong> {invoice.notes}</p>}
+      <footer className="report-print-footer mt-10 border-t pt-3 text-center">Computer-generated invoice · Thank you for your business</footer>
+    </article>
+  );
+}
+
+function A4Total({ label, value }: { label: string; value: number }) {
+  return <div className="flex justify-between"><span>{label}</span><span>{money.format(value)}</span></div>;
 }
 
 function MetricCard({

@@ -51,6 +51,7 @@ export function Workspace({
   onPasswordChanged: () => Promise<void>;
 }) {
   const [section, setSection] = useState<Section>("home");
+  const [returnInvoiceNumber, setReturnInvoiceNumber] = useState("");
   const logoUrl = useStoreLogo(session.accessToken);
 
   useEffect(() => {
@@ -191,7 +192,7 @@ export function Workspace({
         <main className={`md-content ${section === "pos" ? "p-5" : "p-8"}`}>
           {section === "home" && <HomePanel accessToken={session.accessToken} user={session.user} />}
           {section === "pos" && canUsePos && <PosPanel accessToken={session.accessToken} />}
-          {section === "returns" && canAdminister && <SalesReturnsPanel accessToken={session.accessToken} />}
+          {section === "returns" && canAdminister && <SalesReturnsPanel accessToken={session.accessToken} initialInvoiceNumber={returnInvoiceNumber} />}
           {section === "khata" && canUsePos && <KhataPanel accessToken={session.accessToken} />}
           {section === "inventory" && canReadInventory && (
             <InventoryPanel accessToken={session.accessToken} canWrite={canWriteInventory} />
@@ -200,7 +201,11 @@ export function Workspace({
             <PurchasingPanel accessToken={session.accessToken} canPay={canAdminister} />
           )}
           {section === "reports" && canViewReports && (
-            <ReportsPanel accessToken={session.accessToken} canViewInvoices={canAdminister} />
+            <ReportsPanel
+              accessToken={session.accessToken}
+              canViewInvoices={canAdminister}
+              onStartReturn={(invoiceNumber) => { setReturnInvoiceNumber(invoiceNumber); setSection("returns"); }}
+            />
           )}
           {section === "operations" && canAdminister && <OperationsPanel />}
           {section === "store" && (

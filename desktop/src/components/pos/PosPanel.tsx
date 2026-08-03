@@ -34,6 +34,7 @@ interface HeldCart extends CartDraft { id: string; name: string; heldAt: string;
 const ACTIVE_DRAFT_KEY = "simplified-billing.pos.active-draft.v1";
 const HELD_CARTS_KEY = "simplified-billing.pos.held-carts.v1";
 const PRINT_QUEUE_KEY = "simplified-billing.pos.print-queue.v1";
+const LAST_INVOICE_KEY = "simplified-billing.pos.last-invoice.v1";
 
 function loadStored<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "") as T; }
@@ -83,6 +84,8 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   const [printQueue, setPrintQueue] = useState<PosInvoiceResponse[]>(() => loadStored(PRINT_QUEUE_KEY, []));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [invoice, setInvoice] = useState<PosInvoiceResponse | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<PosInvoiceResponse | null>(() => loadStored(LAST_INVOICE_KEY, null));
+  const [invoiceIsReprint, setInvoiceIsReprint] = useState(false);
 
   const quoteRequest = useMemo<PosQuoteRequest>(() => ({
     items: cart.map<PosCartItemRequest>((line) => ({
@@ -106,6 +109,9 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
   }, [heldCarts]);
 
   useEffect(() => { localStorage.setItem(PRINT_QUEUE_KEY, JSON.stringify(printQueue)); }, [printQueue]);
+  useEffect(() => {
+    if (lastInvoice) localStorage.setItem(LAST_INVOICE_KEY, JSON.stringify(lastInvoice));
+  }, [lastInvoice]);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -179,8 +185,14 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         if (quote) setPaymentOpen(true);
       } else if (event.key === "F4") {
         event.preventDefault();
-        if (invoice) void printReceipt(invoice);
+        if (invoice) void printReceipt(invoice, invoiceIsReprint);
         else if (quote) setPaymentOpen(true);
+      } else if (event.key === "F6") {
+        event.preventDefault();
+        if (!invoice && lastInvoice) {
+          setInvoiceIsReprint(true);
+          setInvoice(lastInvoice);
+        }
       } else if (event.key === "Escape" && !paymentOpen && !invoice && cart.length > 0) {
         const tag = (event.target as HTMLElement | null)?.tagName;
         if (tag !== "SELECT" && window.confirm("Clear the current cart?")) clearCart();
@@ -188,7 +200,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     }
     window.addEventListener("keydown", onShortcut);
     return () => window.removeEventListener("keydown", onShortcut);
-  }, [cart.length, invoice, paymentOpen, quote]);
+  }, [cart.length, invoice, invoiceIsReprint, lastInvoice, paymentOpen, quote]);
 
   useEffect(() => {
     if (!paymentOpen && !invoice) barcodeInput.current?.focus();
@@ -286,7 +298,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
     checkoutKey.current = null; setInvoice(null);
   }
 
-  async function printReceipt(receipt: PosInvoiceResponse) {
+  async function printReceipt(receipt: PosInvoiceResponse, reprint = false) {
     try {
       await new Promise<void>((resolve) => {
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -298,6 +310,13 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         window.print();
       }
       setPrintQueue((current) => current.filter((item) => item.id !== receipt.id));
+      if (reprint) {
+        try {
+          await api.recordInvoiceOutput(accessToken, receipt.id, "THERMAL_REPRINT");
+        } catch {
+          setError("Receipt printed, but its reprint history could not be recorded.");
+        }
+      }
     } catch (caught) {
       setError(messageFrom(caught, "The receipt could not be printed."));
       setPrintQueue((current) => current.some((item) => item.id === receipt.id) ? current : [...current, receipt]);
@@ -316,6 +335,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             </div>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
               {cart.length > 0 && <button type="button" onClick={holdCart} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Hold cart</button>}
+              {lastInvoice && !invoice && <button type="button" onClick={() => { setInvoiceIsReprint(true); setInvoice(lastInvoice); }} className="rounded-lg border border-slate-300 px-3 py-2 text-indigo-700">Last invoice · F6</button>}
               <Shortcut label="F1" text="Scan" />
               <Shortcut label="F2" text="Pay" />
               <Shortcut label="F4" text="Save/Print" />
@@ -328,7 +348,7 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
             {heldCarts.map((held) => <button key={held.id} type="button" onClick={() => resumeCart(held)} className="rounded-full bg-white px-3 py-1 font-bold text-amber-900 shadow-sm" title={new Date(held.heldAt).toLocaleString("en-IN")}>{held.name} · {held.cart.length}</button>)}
           </div>}
           {printQueue.length > 0 && <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-2 text-xs">
-            <strong className="text-red-900">Print retry:</strong>{printQueue.map((queued) => <button key={queued.id} type="button" onClick={() => setInvoice(queued)} className="rounded-full bg-white px-3 py-1 font-bold text-red-800 shadow-sm">{queued.invoiceNumber}</button>)}
+            <strong className="text-red-900">Print retry:</strong>{printQueue.map((queued) => <button key={queued.id} type="button" onClick={() => { setInvoiceIsReprint(false); setInvoice(queued); }} className="rounded-full bg-white px-3 py-1 font-bold text-red-800 shadow-sm">{queued.invoiceNumber}</button>)}
           </div>}
 
           {cart.length === 0 ? (
@@ -489,7 +509,9 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
               notes: ""
             });
             setPaymentOpen(false);
+            setInvoiceIsReprint(false);
             setInvoice(completed);
+            setLastInvoice(completed);
             setCart([]);
             setQuote(null);
             checkoutKey.current = null;
@@ -501,11 +523,12 @@ export function PosPanel({ accessToken }: { accessToken: string }) {
         <ReceiptModal
           invoice={invoice}
           logoUrl={logoUrl}
+          duplicate={invoiceIsReprint}
           onClose={() => { setInvoice(null); window.setTimeout(() => barcodeInput.current?.focus(), 0); }}
-          onPrint={() => printReceipt(invoice)}
+          onPrint={() => printReceipt(invoice, invoiceIsReprint)}
         />
       )}
-      {invoice && <ReceiptPrintSurface invoice={invoice} logoUrl={logoUrl} />}
+      {invoice && <ReceiptPrintSurface invoice={invoice} logoUrl={logoUrl} duplicate={invoiceIsReprint} />}
     </div>
   );
 }
@@ -642,13 +665,13 @@ function PaymentModal({
   );
 }
 
-function ReceiptModal({ invoice, logoUrl, onClose, onPrint }: { invoice: PosInvoiceResponse; logoUrl: string | null; onClose: () => void; onPrint: () => Promise<void> }) {
+function ReceiptModal({ invoice, logoUrl, duplicate, onClose, onPrint }: { invoice: PosInvoiceResponse; logoUrl: string | null; duplicate: boolean; onClose: () => void; onPrint: () => Promise<void> }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-6" role="dialog" aria-modal="true" aria-label="Completed receipt">
       <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className="text-sm font-bold text-emerald-700">Sale completed</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div><button onClick={onClose} className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100">✕</button></div>
-        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} /></div></div>
-        <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">New sale</button><button onClick={() => void onPrint()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">Print receipt · F4</button></div>
+        <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className={`text-sm font-bold ${duplicate ? "text-indigo-700" : "text-emerald-700"}`}>{duplicate ? "Last completed sale" : "Sale completed"}</p><h3 className="text-xl font-bold">Invoice {invoice.invoiceNumber}</h3></div><button onClick={onClose} className="rounded-lg px-3 py-2 font-bold hover:bg-slate-100">✕</button></div>
+        <div className="min-h-0 overflow-auto bg-slate-100 p-6"><div className="mx-auto shadow-xl"><ThermalReceipt invoice={invoice} logoUrl={logoUrl} duplicate={duplicate} /></div></div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-5"><button onClick={onClose} className="rounded-lg border border-slate-300 px-5 py-2.5 font-bold">{duplicate ? "Close" : "New sale"}</button><button onClick={() => void onPrint()} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-bold text-white">{duplicate ? "Reprint receipt" : "Print receipt"} · F4</button></div>
       </div>
     </div>
   );

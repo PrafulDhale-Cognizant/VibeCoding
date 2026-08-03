@@ -23,6 +23,10 @@ Authentication**, **Inventory Management**, **Point of Sale**, **Sales Returns &
 - original-price, discount, GST and purchase-cost return snapshots with printable credit notes
 - scanner-first 70/30 POS workspace with theme-aware cart/checkout surfaces and customer capture for every payment mode
 - 58 mm and 80 mm thermal receipt preview and operating-system printing
+- searchable invoice archive with status, payment, date, amount and sort filters
+- thermal/A4 reprints, offline PDF export, selected-invoice CSV export and copy-to-share summaries
+- per-invoice activity history for sale, return, cancellation, reprint, PDF and sharing actions
+- one-click return/cancellation handoff from invoice details and an `F6` last-invoice shortcut in POS
 - customer accounts, append-only credit statements and locked outstanding balances
 - atomic Udhaar checkout plus idempotent full or partial settlements
 - Khata receivable summary, customer search, maintenance and statement workspace
@@ -561,7 +565,9 @@ trusted during checkout.
 | `POST` | `/api/v1/pos/quote` | Recalculate a cart using current product and tax data |
 | `POST` | `/api/v1/pos/checkout` | Atomically save the invoice, payments, stock deductions and ledger entries |
 | `GET` | `/api/v1/pos/invoices/{invoiceId}` | Retrieve an immutable invoice and receipt snapshot |
-| `GET` | `/api/v1/invoices?query=...&page=0&size=25` | Owner/Admin invoice search by number, customer or phone |
+| `GET` | `/api/v1/invoices` | Owner/Admin invoice search with query, status, payment, date, amount, sort and paging filters |
+| `GET` | `/api/v1/invoices/{invoiceId}/activity` | Owner/Admin immutable invoice activity history |
+| `POST` | `/api/v1/invoices/{invoiceId}/outputs?type=...` | Record a successful reprint, A4 print, PDF export or copied share summary |
 
 Every checkout requires an `Idempotency-Key` header containing 8-80 safe characters. Retrying a
 completed request with the same key returns the existing invoice rather than deducting stock
@@ -574,6 +580,7 @@ entry and scanners that terminate with Enter add the item immediately. Keyboard 
 - `F1`: focus barcode/product search
 - `F2`: open payment collection
 - `F4`: save/print the current bill, or reprint the completed receipt
+- `F6`: reopen the last completed invoice as a marked duplicate for reprinting
 - `Esc`: clear the current cart after confirmation
 
 Cash, UPI, Card and customer-linked Udhaar are implemented. Checkout can search or create a

@@ -18,5 +18,6 @@ contextBridge.exposeInMainWorld("billingDesktop", {
   testPrinter: (deviceName) => ipcRenderer.invoke("billing:printers:test", deviceName),
   printBarcodeLabels: (options) => ipcRenderer.invoke("billing:print:barcode-labels", options),
   printReceipt: (options) => ipcRenderer.invoke("billing:print:receipt", options),
-  printReport: () => ipcRenderer.invoke("billing:print:report")
+  printReport: () => ipcRenderer.invoke("billing:print:report"),
+  saveInvoicePdf: (suggestedFileName) => ipcRenderer.invoke("billing:invoice:save-pdf", suggestedFileName)
 });

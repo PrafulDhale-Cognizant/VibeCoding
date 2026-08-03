@@ -19,8 +19,8 @@ function money(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 }
 
-export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
-  const [invoiceNumber, setInvoiceNumber] = useState("");
+export function SalesReturnsPanel({ accessToken, initialInvoiceNumber = "" }: { accessToken: string; initialInvoiceNumber?: string }) {
+  const [invoiceNumber, setInvoiceNumber] = useState(initialInvoiceNumber);
   const [invoice, setInvoice] = useState<SaleReturnSourceInvoice | null>(null);
   const [invoices, setInvoices] = useState<InvoiceSummaryResponse[]>([]);
   const [invoiceCount, setInvoiceCount] = useState(0);
@@ -33,6 +33,14 @@ export function SalesReturnsPanel({ accessToken }: { accessToken: string }) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const key = useRef(crypto.randomUUID());
+  const openedInitialInvoice = useRef("");
+
+  useEffect(() => {
+    const number = initialInvoiceNumber.trim();
+    if (!number || openedInitialInvoice.current === number) return;
+    openedInitialInvoice.current = number;
+    void selectInvoice(number);
+  }, [initialInvoiceNumber]);
 
   useEffect(() => {
     let cancelled = false;

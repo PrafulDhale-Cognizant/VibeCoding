@@ -32,7 +32,8 @@ interface BillingDesktopBridge {
   testPrinter: (deviceName: string) => Promise<boolean>;
   printBarcodeLabels: (options: { widthMm: number; heightMm: number }) => Promise<void>;
   printReceipt: (options: { widthMm: 58 | 80 }) => Promise<void>;
-  printReport: () => Promise<void>;
+  printReport: () => Promise<boolean>;
+  saveInvoicePdf: (suggestedFileName: string) => Promise<{ fileName: string } | null>;
 }
 
 interface Window {

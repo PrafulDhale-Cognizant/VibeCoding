@@ -692,14 +692,36 @@ if (!hasSingleInstanceLock) {
             pageSize: "A4"
           },
           (success, failureReason) => {
-            if (success || /cancel(?:led|ed)/i.test(failureReason || "")) {
-              resolve();
+            if (success) {
+              resolve(true);
+            } else if (/cancel(?:led|ed)/i.test(failureReason || "")) {
+              resolve(false);
             } else {
               reject(new Error(failureReason || "Report printing failed."));
             }
           }
         );
       });
+    });
+    ipcMain.handle("billing:invoice:save-pdf", async (event, suggestedFileName) => {
+      assertTrustedIpcSender(event);
+      const safeName = String(suggestedFileName || "invoice")
+        .replace(/[^A-Za-z0-9._-]/g, "_")
+        .replace(/\.pdf$/i, "")
+        .slice(0, 80) || "invoice";
+      const selected = await dialog.showSaveDialog(mainWindow, {
+        title: "Save invoice as PDF",
+        defaultPath: `${safeName}.pdf`,
+        filters: [{ name: "PDF document", extensions: ["pdf"] }]
+      });
+      if (selected.canceled || !selected.filePath) return null;
+      const pdf = await event.sender.printToPDF({
+        pageSize: "A4",
+        printBackground: false,
+        preferCSSPageSize: true
+      });
+      fs.writeFileSync(selected.filePath, pdf, { mode: 0o600 });
+      return { fileName: path.basename(selected.filePath) };
     });
 
     startBackendIfConfigured();

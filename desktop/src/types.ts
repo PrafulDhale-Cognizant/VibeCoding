@@ -379,6 +379,27 @@ export interface InvoiceSummaryResponse {
   customerPhone: string | null;
 }
 
+export type InvoiceOutputType = "THERMAL_REPRINT" | "A4_PRINT" | "PDF_EXPORT" | "SHARE_COPIED";
+
+export interface InvoiceActivityResponse {
+  eventType: string;
+  actorName: string;
+  occurredAt: string;
+}
+
+export interface InvoiceSearchFilters {
+  query?: string;
+  status?: PosInvoiceResponse["status"] | "ALL";
+  paymentMode?: PaymentMode | "ALL";
+  from?: string;
+  to?: string;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  sort?: "NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW";
+  page?: number;
+  size?: number;
+}
+
 export interface SaleReturnResponse {
   id: string;
   returnNumber: string;

@@ -5,6 +5,9 @@ import type {
   InitialSetupRequest,
   InventoryPage,
   InvoiceSummaryResponse,
+  InvoiceActivityResponse,
+  InvoiceOutputType,
+  InvoiceSearchFilters,
   KhataBalanceStatus,
   KhataCustomerResponse,
   KhataLedgerEntryResponse,
@@ -432,12 +435,39 @@ export const api = {
       {},
       accessToken
     ),
-  searchInvoices: (accessToken: string, query = "", page = 0, size = 25) => {
-    const parameters = new URLSearchParams({ query, page: String(page), size: String(size) });
+  searchInvoices: (
+    accessToken: string,
+    queryOrFilters: string | InvoiceSearchFilters = "",
+    page = 0,
+    size = 25
+  ) => {
+    const filters: InvoiceSearchFilters = typeof queryOrFilters === "string"
+      ? { query: queryOrFilters, page, size }
+      : queryOrFilters;
+    const parameters = new URLSearchParams({
+      query: filters.query?.trim() ?? "",
+      page: String(filters.page ?? 0),
+      size: String(filters.size ?? 25),
+      sort: filters.sort ?? "NEWEST"
+    });
+    if (filters.status && filters.status !== "ALL") parameters.set("status", filters.status);
+    if (filters.paymentMode && filters.paymentMode !== "ALL") parameters.set("paymentMode", filters.paymentMode);
+    if (filters.from) parameters.set("from", filters.from);
+    if (filters.to) parameters.set("to", filters.to);
+    if (filters.minAmount !== null && filters.minAmount !== undefined) parameters.set("minAmount", String(filters.minAmount));
+    if (filters.maxAmount !== null && filters.maxAmount !== undefined) parameters.set("maxAmount", String(filters.maxAmount));
     return request<InventoryPage<InvoiceSummaryResponse>>(
       `/api/v1/invoices?${parameters.toString()}`, {}, accessToken
     );
   },
+  getInvoiceActivity: (accessToken: string, invoiceId: string) =>
+    request<InvoiceActivityResponse[]>(`/api/v1/invoices/${invoiceId}/activity`, {}, accessToken),
+  recordInvoiceOutput: (accessToken: string, invoiceId: string, type: InvoiceOutputType) =>
+    request<void>(
+      `/api/v1/invoices/${invoiceId}/outputs?${new URLSearchParams({ type }).toString()}`,
+      { method: "POST" },
+      accessToken
+    ),
   settleKhata: (
     accessToken: string,
     customerId: string,

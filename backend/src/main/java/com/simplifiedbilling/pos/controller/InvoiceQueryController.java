@@ -24,13 +24,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
-@PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
 public class InvoiceQueryController {
     private final InvoiceQueryService service;
 
     public InvoiceQueryController(InvoiceQueryService service) { this.service = service; }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public InvoiceQueryResponses.InvoicePage search(
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) InvoiceStatus status,
@@ -47,11 +47,13 @@ public class InvoiceQueryController {
     }
 
     @GetMapping("/{invoiceId}/activity")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public List<InvoiceQueryResponses.InvoiceActivity> activity(@PathVariable String invoiceId) {
         return service.activity(invoiceId);
     }
 
     @PostMapping("/{invoiceId}/outputs")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'CASHIER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void recordOutput(
             @AuthenticationPrincipal Jwt jwt,
